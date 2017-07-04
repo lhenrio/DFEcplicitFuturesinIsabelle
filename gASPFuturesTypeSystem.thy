@@ -10,20 +10,23 @@ inductive Subtype :: "Program\<Rightarrow>ASPType \<Rightarrow>ASPType \<Rightar
 |
  "P\<turnstile>FutType (TObj C)\<sqsubseteq>FutType AnyObject"
 
-inductive TypeExpression :: "Program\<Rightarrow>Configuration\<Rightarrow> (VarName \<rightharpoonup>ASPType)\<Rightarrow> ClassName\<Rightarrow>Expression \<Rightarrow>ASPType \<Rightarrow> bool"  ("_,_,_ in _\<turnstile>\<^sub>E_:_" 50)
- where
- "P,Cn Acts Futs,\<Gamma> in C \<turnstile>\<^sub>E Val (ASPInt n): BType Integer"
+inductive TypeValue :: "Program\<Rightarrow>Configuration\<Rightarrow>Value \<Rightarrow> ASPType \<Rightarrow> bool"  ("_,_\<turnstile>\<^sub>V_:_" 50)
+where
+ "P,Conf \<turnstile>\<^sub>V ASPInt n: BType Integer"
 |
- "P,Cn Acts Futs,\<Gamma> in C \<turnstile>\<^sub>E Val (ASPBool b): BType Boolean"
+ "P,Conf \<turnstile>\<^sub>V ASPBool b: BType Boolean"
 |
- "P,Cn Acts Futs,\<Gamma> in C \<turnstile>\<^sub>E Val (null) :  BType (AnyObject)"
+ "P,Conf \<turnstile>\<^sub>V null :  BType (AnyObject)"
 |
  "Acts \<alpha>= Some(AO C' state R Ec Rq)
-\<Longrightarrow> P,Cn Acts Futs,\<Gamma> in C \<turnstile>\<^sub>E Val (ActRef \<alpha>):  BType (TObj C')"  (*dynamic obj*)
+\<Longrightarrow> P,Cn Acts Futs \<turnstile>\<^sub>V ActRef \<alpha>:  BType (TObj C')"  (*dynamic obj*)
 |
  "Futs f = Some(T,V)
-\<Longrightarrow> P,Cn Acts Futs,\<Gamma> in C \<turnstile>\<^sub>E Val (FutRef f):   FutType T  (*dynamic fut*)
-" 
+\<Longrightarrow> P,Cn Acts Futs \<turnstile>\<^sub>V FutRef f: FutType T"  (*dynamic fut*)
+
+inductive TypeExpression :: "Program\<Rightarrow>Configuration\<Rightarrow> (VarName \<rightharpoonup>ASPType)\<Rightarrow> ClassName\<Rightarrow>Expression \<Rightarrow>ASPType \<Rightarrow> bool"  ("_,_,_ in _\<turnstile>\<^sub>E_:_" 50)
+ where
+ " P,Config \<turnstile>\<^sub>V v:T \<Longrightarrow> P,config,\<Gamma> in C \<turnstile>\<^sub>E Val v:T"
 |
 " P,Cn Acts Futs,\<Gamma> in C \<turnstile>\<^sub>E Var This:  BType (TObj C)  (*This*)
   " 
@@ -40,17 +43,20 @@ P,Config,\<Gamma> in C \<turnstile>\<^sub>Ee+\<^sub>Ae':BType Integer"
 
 inductive TypeRhs  :: "Program\<Rightarrow>Configuration\<Rightarrow> (VarName \<rightharpoonup>ASPType)\<Rightarrow> ClassName\<Rightarrow> Rhs \<Rightarrow>ASPType \<Rightarrow> bool"  ("_,_,_ in _\<turnstile>\<^sub>R_:_" 50)
  where
+  (* Expression *)
  " P,Config,\<Gamma> in C \<turnstile>\<^sub>E e:T \<Longrightarrow> P,Config,\<Gamma> in C \<turnstile>\<^sub>R (Expr e):T"
-|
+|  (* method call*)
  "\<lbrakk> P,Config,\<Gamma> in C \<turnstile>\<^sub>E e:BType (TObj C') ; fetchClass P C' = Some Class;
    fetchMethodInClass Class m = Some Meth;
    param_types= map fst (MParams Meth) ; length param_types = length el ; \<forall> i<length el. (P,Config,\<Gamma> in C \<turnstile>\<^sub>E el!i:(param_types!i)) \<rbrakk>
 \<Longrightarrow> P,Config,\<Gamma> in C \<turnstile>\<^sub>R (e.\<^sub>Am(el)):MakeFutureType (MRType Meth)"
-|
+|  (* new active *)
 "\<lbrakk>  fetchClass P C' = Some Class;
    Class_param_types = map fst (ClassParameters Class);
    length Class_param_types = length el ; \<forall> i<length el. (P,Config,\<Gamma> in C \<turnstile>\<^sub>E el!i:(Class_param_types!i)) \<rbrakk>
 \<Longrightarrow> P,Config,\<Gamma> in C \<turnstile>\<^sub>R (newActive C'(el)):BType (TObj C')"
+| (* Get *)
+" \<Gamma> y = Some (FutType T)    \<Longrightarrow> P,Config,\<Gamma> in C \<turnstile>\<^sub>R (Get y):BType (T)"
 |
 "P\<turnstile>T\<sqsubseteq>T' \<Longrightarrow>  P,Config,\<Gamma> in C \<turnstile>\<^sub>R e:T \<Longrightarrow> P,Config,\<Gamma> in C \<turnstile>\<^sub>R e:T' "   (* subtype*)
 
@@ -96,7 +102,41 @@ where
                               (P,EmptyConfig,\<Gamma> in (Name emptyObjClass) \<turnstile>\<^sub>L MainBody )  ) ) )
 "
 
-primrec TypeConfig :: "Program \<Rightarrow>Configuration \<Rightarrow>bool" ("_ \<turnstile>\<^sub>R _ " 50)
+inductive TypeRequest :: "Program \<Rightarrow> Configuration\<Rightarrow> ClassName \<Rightarrow>Request \<Rightarrow> bool"  ("_,_ in _ \<turnstile>\<^sub>Q _" 50)
+where 
+" \<lbrakk> fetchClass P C =   Some Class ;
+    fetchMethodInClass Class m = Some Meth; 
+    param_types= map fst (MParams Meth);
+    length vl = length param_types ;  \<forall> i <length vl . (P, Cn Acts Futs\<turnstile>\<^sub>V(vl!i):(param_types!i));
+    Futs f = Some (T, Undefined); T=GetBasicType (MRType Meth)
+\<rbrakk>
+\<Longrightarrow>P,Cn Acts Fut in C\<turnstile>\<^sub>Q(f,m,vl)"
+
+definition BuildTypeEnv ::"(ASPType * VarName) list \<Rightarrow> VarName \<Rightarrow>ASPType option"
 where
-" (P\<turnstile>\<^sub>RCn AOs Futures) = (\<forall> Act\<in> ran AOs. case Act of (AO C state R Ec Rq) \<Rightarrow> True )
+"BuildTypeEnv VarDeclList =  (map_of (map prod.swap (VarDeclList)))"
+
+primrec TypeConfig :: "Program \<Rightarrow>Configuration \<Rightarrow>bool" ("_ \<turnstile> _ " 50)
+where
+" (P\<turnstile>Cn AOs Futures) =
+((\<forall> Act\<in> ran AOs. case Act of (AO C state R Ec Rq) \<Rightarrow>
+   (\<exists> CL . (fetchClass P C = Some CL \<and>
+    (
+     (* check state *)
+     ( (  \<forall> x v. (state(x) =Some  v \<longrightarrow> (\<exists> T . (T,x)\<in> set (ClassParameters CL) \<and> (P,Cn AOs Futures\<turnstile>\<^sub>V v: T))) ) )
+     (* check request queue*)
+     \<and> (\<forall> R'\<in>set Rq. (P, (Cn AOs Futures) in C \<turnstile>\<^sub>Q R' ) )
+     (* check current request*)
+     \<and> (\<forall> f m vl. (R=Some  (f,m,vl) \<longrightarrow>(\<exists> Meth. fetchMethodInClass CL m = Some Meth \<and>
+                     (P, Cn AOs Futures in C \<turnstile>\<^sub>Q (f,m,vl)) 
+                     \<and> (\<forall> locs Stl. Ec=(locs,Stl) \<longrightarrow> ( \<forall> s\<in>set Stl. 
+                        (P,Cn AOs Futures,(BuildTypeEnv (ClassParameters CL))++(BuildTypeEnv (LocalVariables Meth))++(BuildTypeEnv (MParams Meth)) in C \<turnstile>\<^sub>S s)
+        )) ) ) ))))) \<and>
+(\<forall> futs\<in> ran Futures. case futs of
+      (T,Undefined) \<Rightarrow> True |
+      (T,FutVal v) \<Rightarrow> (P,Cn AOs Futures \<turnstile>\<^sub>V v: (FutType T))))
 "
+
+
+
+

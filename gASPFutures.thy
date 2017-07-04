@@ -52,6 +52,7 @@ datatype Expression = Val Value
 datatype Rhs = Expr Expression
              | Call Expression MethodName "Expression list" ("_.\<^sub>A_'(_')" [440,0,50] 500) (*e.m(e list) *)
              | NewActive ClassName "Expression list" ("newActive _'(_')" [300,0] 500) (*newActive C(e list) *)
+             | Get VarName
 
 datatype Statement =   Assign VarName Rhs  (infix "=\<^sub>A"  400) (*x=z*)
 | Return Expression ("return _" [300] 300)(*return E *)
@@ -330,7 +331,9 @@ AssignField  [simp, intro!]:
       \<rbrakk>  
       \<Longrightarrow> P\<turnstile>Cn Activities Futures 
           \<leadsto>Cn (Activities(\<alpha>\<mapsto>(AO C state None emptyEC Rq))) (Futures(f\<mapsto>(T,FutVal v) ))" 
-|
+
+(************************** AUTOMATIC UPDATE **************************************)
+(*|
   UpdateFuture_state [simp, intro!]: 
      "\<lbrakk>Activities \<alpha> = Some  (AO C state R Ec Rq);
      Futures f = Some (T,FutVal v); 
@@ -345,7 +348,18 @@ AssignField  [simp, intro!]:
      locs x = Some (FutRef f)
       \<rbrakk>  
       \<Longrightarrow> P\<turnstile>Cn Activities Futures 
-           \<leadsto>Cn (Activities(\<alpha>\<mapsto> (AO C state  R (locs(x\<mapsto>v),Stl) Rq))) Futures" 
+           \<leadsto>Cn (Activities(\<alpha>\<mapsto> (AO C state  R (locs(x\<mapsto>v),Stl) Rq))) Futures" *)
+
+(***************** GET ***************************)
+|
+  Get  [simp, intro!]: 
+     "\<lbrakk>Activities \<alpha> = Some  (AO C state (Some R) Ec Rq);
+      Ec= (locs,(x=\<^sub>AGet y);;Stl); 
+      (Var (Id y),\<alpha>,state, locs,(FutName f))\<in>EvalExpr;
+     Futures f = Some (T,FutVal v)
+      \<rbrakk>  
+      \<Longrightarrow> P\<turnstile>Cn Activities Futures 
+           \<leadsto>Cn (Activities(\<alpha>\<mapsto>(AO C state (Some R) (locs,(x=\<^sub>AExpr (Val v));;Stl) Rq))) Futures" 
 |
     IfThenElseTrue [simp, intro!]: 
      "\<lbrakk>Activities \<alpha> = Some(AO C state (Some R) Ec Rq); 
