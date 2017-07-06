@@ -1,11 +1,8 @@
-(*  Title:      MultiASP.thy
-    Author:     Ludovic Henrio and Florian Kammuller
-                2014
+(*  Title:      gASPFutures
+    Author:     Ludovic Henrio 
+                2017
 
-    Note:       Multi-active object formalisation
-                For the moment methods and parameter bindings are done statically, 
-                  without inheritance but with interfaces
-                  this could be improved
+    Note:      A new type system for futures
 *)
 (*Conventions:
   l = location in store
