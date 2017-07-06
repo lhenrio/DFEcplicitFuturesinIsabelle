@@ -1,5 +1,9 @@
 theory gASPFuturesTypeSystem imports gASPFutures begin
 
+definition BuildTypeEnv ::"(ASPType * VarName) list \<Rightarrow> VarName \<Rightarrow>ASPType option"
+where
+"BuildTypeEnv VarDeclList =  (map_of (map prod.swap (VarDeclList)))"
+
 inductive Subtype :: "Program\<Rightarrow>ASPType \<Rightarrow>ASPType \<Rightarrow>bool "  (" _\<turnstile>_\<sqsubseteq>_" 50)
  where
  "P\<turnstile>T\<sqsubseteq>T"
@@ -56,7 +60,7 @@ inductive TypeRhs  :: "Program\<Rightarrow>Configuration\<Rightarrow> (VarName \
    length Class_param_types = length el ; \<forall> i<length el. (P,Config,\<Gamma> in C \<turnstile>\<^sub>E el!i:(Class_param_types!i)) \<rbrakk>
 \<Longrightarrow> P,Config,\<Gamma> in C \<turnstile>\<^sub>R (newActive C'(el)):BType (TObj C')"
 | (* Get *)
-" \<Gamma> y = Some (FutType T)    \<Longrightarrow> P,Config,\<Gamma> in C \<turnstile>\<^sub>R (Get y):BType (T)"
+" P,Config,\<Gamma> in C \<turnstile>\<^sub>E e:(FutType T)    \<Longrightarrow> P,Config,\<Gamma> in C \<turnstile>\<^sub>R (Get e):BType (T)"
 |
 "P\<turnstile>T\<sqsubseteq>T' \<Longrightarrow>  P,Config,\<Gamma> in C \<turnstile>\<^sub>R e:T \<Longrightarrow> P,Config,\<Gamma> in C \<turnstile>\<^sub>R e:T' "   (* subtype*)
 
@@ -112,10 +116,6 @@ where
 \<rbrakk>
 \<Longrightarrow>P,Cn Acts Fut in C\<turnstile>\<^sub>Q(f,m,vl)"
 
-definition BuildTypeEnv ::"(ASPType * VarName) list \<Rightarrow> VarName \<Rightarrow>ASPType option"
-where
-"BuildTypeEnv VarDeclList =  (map_of (map prod.swap (VarDeclList)))"
-
 primrec TypeConfig :: "Program \<Rightarrow>Configuration \<Rightarrow>bool" ("_ \<turnstile> _ " 50)
 where
 " (P\<turnstile>Cn AOs Futures) =
@@ -127,11 +127,14 @@ where
      (* check request queue*)
      \<and> (\<forall> R'\<in>set Rq. (P, (Cn AOs Futures) in C \<turnstile>\<^sub>Q R' ) )
      (* check current request*)
-     \<and> (\<forall> f m vl. (R=Some  (f,m,vl) \<longrightarrow>(\<exists> Meth. fetchMethodInClass CL m = Some Meth \<and>
-                     (P, Cn AOs Futures in C \<turnstile>\<^sub>Q (f,m,vl)) 
-                     \<and> (\<forall> locs Stl. Ec=(locs,Stl) \<longrightarrow> ( \<forall> s\<in>set Stl. 
-                        (P,Cn AOs Futures,(BuildTypeEnv (ClassParameters CL))++(BuildTypeEnv (LocalVariables Meth))++(BuildTypeEnv (MParams Meth)) in C \<turnstile>\<^sub>S s)
-        )) ) ) ))))) \<and>
+     \<and> 
+     (case R of Some  (f,m,vl) \<Rightarrow>
+         (\<exists> Meth. fetchMethodInClass CL m = Some Meth \<and>
+           (P, Cn AOs Futures in C \<turnstile>\<^sub>Q (f,m,vl)) 
+           \<and> (case Ec of (locs,Stl) \<Rightarrow> ( \<forall> s\<in>set Stl. 
+             (P,Cn AOs Futures,(BuildTypeEnv (ClassParameters CL))++(BuildTypeEnv (LocalVariables Meth))++(BuildTypeEnv (MParams Meth)) in C \<turnstile>\<^sub>S s)
+        )) ) ) )))) \<and>
+   (* Futures *)
 (\<forall> futs\<in> ran Futures. case futs of
       (T,Undefined) \<Rightarrow> True |
       (T,FutVal v) \<Rightarrow> (P,Cn AOs Futures \<turnstile>\<^sub>V v: (FutType T))))

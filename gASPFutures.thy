@@ -52,7 +52,7 @@ datatype Expression = Val Value
 datatype Rhs = Expr Expression
              | Call Expression MethodName "Expression list" ("_.\<^sub>A_'(_')" [440,0,50] 500) (*e.m(e list) *)
              | NewActive ClassName "Expression list" ("newActive _'(_')" [300,0] 500) (*newActive C(e list) *)
-             | Get VarName
+             | Get Expression
 
 datatype Statement =   Assign VarName Rhs  (infix "=\<^sub>A"  400) (*x=z*)
 | Return Expression ("return _" [300] 300)(*return E *)
@@ -352,14 +352,23 @@ AssignField  [simp, intro!]:
 
 (***************** GET ***************************)
 |
-  Get  [simp, intro!]: 
+  GetRetrieve  [simp, intro!]: 
      "\<lbrakk>Activities \<alpha> = Some  (AO C state (Some R) Ec Rq);
-      Ec= (locs,(x=\<^sub>AGet y);;Stl); 
-      (Var (Id y),\<alpha>,state, locs,(FutName f))\<in>EvalExpr;
+      Ec= (locs,(x=\<^sub>AGet e);;Stl); 
+      (e,\<alpha>,state, locs,(FutRef f))\<in>EvalExpr;
      Futures f = Some (T,FutVal v)
       \<rbrakk>  
       \<Longrightarrow> P\<turnstile>Cn Activities Futures 
-           \<leadsto>Cn (Activities(\<alpha>\<mapsto>(AO C state (Some R) (locs,(x=\<^sub>AExpr (Val v));;Stl) Rq))) Futures" 
+           \<leadsto>Cn (Activities(\<alpha>\<mapsto>(AO C state (Some R) (locs,(x=\<^sub>AGet ( (Val v)));;Stl) Rq))) Futures" 
+|
+  GetValue  [simp, intro!]: 
+     "\<lbrakk>Activities \<alpha> = Some  (AO C state (Some R) Ec Rq);
+      Ec= (locs,(x=\<^sub>AGet e);;Stl); 
+      (Var (Id y),\<alpha>,state, locs,v)\<in>EvalExpr;
+      \<not> (\<exists> f. (v=FutRef f))
+      \<rbrakk>  
+      \<Longrightarrow> P\<turnstile>Cn Activities Futures 
+           \<leadsto>Cn (Activities(\<alpha>\<mapsto>(AO C state (Some R) (locs,(x=\<^sub>AExpr(Val v));;Stl) Rq))) Futures" 
 |
     IfThenElseTrue [simp, intro!]: 
      "\<lbrakk>Activities \<alpha> = Some(AO C state (Some R) Ec Rq); 
