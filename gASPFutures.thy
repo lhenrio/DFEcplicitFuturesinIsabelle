@@ -117,7 +117,10 @@ datatype ActiveObject = AO  ClassName "(VarName\<rightharpoonup>Value)"  "Reques
 datatype FutValue = Undefined | FutVal Value  
 
 datatype Configuration = Cn "ActName\<rightharpoonup>ActiveObject" "FutName\<rightharpoonup>(BasicType*FutValue)"
-
+abbreviation Conf_AOs
+where "Conf_AOs conf \<equiv> case conf of Cn ao fut \<Rightarrow> ao"
+abbreviation Conf_futs
+where "Conf_futs conf \<equiv> case conf of Cn ao fut \<Rightarrow> fut"
 
 text{* Binding and fetching elements *}
 definition  fetchClass
@@ -391,12 +394,27 @@ definition emptyObjClass  where
  Methods=[]
 \<rparr>"
 
+definition MainMethodEmptyBody where (* for typing *)
+" MainMethodEmptyBody Vars \<equiv>
+\<lparr>MethSignature= Method (BType Integer) ''main'' [] ,
+LocalVariables= Vars ,
+Body =[]
+\<rparr>
+"
+
+definition MainObjClass  where
+"MainObjClass Vars\<equiv> 
+\<lparr>Name = ''MainClass'',
+ ClassParameters=[],
+ Methods=[(MainMethodEmptyBody Vars)]
+\<rparr>"
+
 abbreviation "EmptyConfig \<equiv> Cn empty empty"
 
 definition BuildInitialConfigurationfromVarsStl:: "((ASPType * VarName) list) \<Rightarrow>Statement list\<Rightarrow> Configuration"
 where
-  "BuildInitialConfigurationfromVarsStl vl stl \<equiv> Cn (empty(0\<mapsto>(AO (''EmptyObjectClass'') (empty) 
-                  (Some(0,''m'',[])) (map_of (map (\<lambda> v. (snd v,Initialisation_from_ASPType (fst v))) vl),stl) [])))
+  "BuildInitialConfigurationfromVarsStl vl stl \<equiv> Cn (empty(0\<mapsto>(AO (''MainClass'') (empty) 
+                  (Some(0,''main'',[])) (map_of (map (\<lambda> v. (snd v,Initialisation_from_ASPType (fst v))) vl),stl) [])))
                   (empty(0\<mapsto>(Integer,Undefined)))"
 
 definition InitialConfiguration:: "Program \<Rightarrow>Configuration"
