@@ -42,18 +42,21 @@ abbreviation GetObject:: "Object \<Rightarrow>VarName=>Value option" ("_.[_]")
 abbreviation SetObject:: "Object \<Rightarrow>VarName=>Value\<Rightarrow>Object" ("_.[_]:=_")
   where "SetObject ob x v\<equiv> ((fst ob)(x\<mapsto>v),snd ob)"
 
-datatype Expression = Val Value
+datatype Atom = Val Value
              | Var VarOrThis 
-             | Plus Expression Expression ("_+\<^sub>A_" [120,120] 200) 
+
+
+datatype Expression = At Atom
+             | Plus Atom Atom ("_+\<^sub>A_" [120,120] 200) 
 
 datatype Rhs = Expr Expression
-             | Call Expression MethodName "Expression list" ("_.\<^sub>A_'(_')" [440,0,50] 500) (*e.m(e list) *)
+             | Call Atom MethodName "Expression list" ("_.\<^sub>A_'(_')" [440,0,50] 500) (*e.m(e list) *)
              | NewActive ClassName "Expression list" ("newActive _'(_')" [300,0] 500) (*newActive C(e list) *)
-             | Get Expression
+             | Get Atom
 
 datatype Statement =   Assign VarName Rhs  (infix "=\<^sub>A"  400) (*x=z*)
 | Return Expression ("return _" [300] 300)(*return E *)
-| If Expression "Statement list" "Statement list" ("IF _ THEN _ ELSE _ " [300,0,0] 300)(*if E then s else s *)
+| If Atom "Statement list" "Statement list" ("IF _ THEN _ ELSE _ " [300,0,0] 300)(*if E then s else s *)
 (* skip |  NB: skip and seq are not necessary thanks to the use of statement list
 | Seq Statement Statement (infix ";;"  100)*)
 abbreviation MakeStatementList:: "Statement \<Rightarrow>Statement list\<Rightarrow>Statement list" (infix ";;" 100)
@@ -219,17 +222,30 @@ apply auto
 apply (erule EvalValue.cases,simp+)+
 done
 
+inductive_set EvalAtom:: "(Atom  \<times>ActName  \<times> (VarName\<rightharpoonup>Value) \<times> (VarName\<rightharpoonup>Value) \<times> Value) set"
+(* (e1,\<alpha>,state,locs,v) is true if e1 EVALUATES to v  in a setting where local variables are locs, state are fields and \<alpha> is the current AO*)
+ where
+   atomval[simp,intro]: "(v,ev)\<in>EvalValue \<Longrightarrow>(Val v, \<alpha>, state,locs, ev)\<in>EvalAtom" |
+   atomlocs[simp,intro]: "\<lbrakk>locs(x)=Some v;(v,ev)\<in>EvalValue\<rbrakk> \<Longrightarrow>(Var (Id x),\<alpha>, state,locs, ev)\<in>EvalAtom" |
+   atomThis[simp,intro]: "(Var This,\<alpha>,  state, locs,  ActRef \<alpha>)\<in>EvalAtom" |
+   atomfield[simp,intro]:
+   "\<lbrakk>locs(x)=None;  state x = Some v;(v,ev)\<in>EvalValue\<rbrakk> 
+                      \<Longrightarrow>(Var (Id x),\<alpha>, state, locs, ev)\<in>EvalAtom" 
+
+lemma EvalAtom_is_deterministic[rule_format]: 
+      " (e,\<alpha>,state,locs,v)\<in>EvalAtom \<longrightarrow> (\<forall> v'. (e,\<alpha>,state,locs,v')\<in>EvalAtom \<longrightarrow>v=v')"
+apply (rule impI)
+apply (erule EvalAtom.induct)
+apply (case_tac v,auto)
+apply (erule EvalAtom.cases,auto)+
+done
+
 inductive_set EvalExpr:: "(Expression  \<times>ActName  \<times> (VarName\<rightharpoonup>Value) \<times> (VarName\<rightharpoonup>Value) \<times> Value) set"
 (* (e1,\<alpha>,state,locs,v) is true if e1 EVALUATES to v  in a setting where local variables are locs, state are fields and \<alpha> is the current AO*)
  where
-   exprval[simp,intro]: "(v,ev)\<in>EvalValue \<Longrightarrow>(Val v, \<alpha>, state,locs, ev)\<in>EvalExpr" |
-   exprlocs[simp,intro]: "\<lbrakk>locs(x)=Some v;(v,ev)\<in>EvalValue\<rbrakk> \<Longrightarrow>(Var (Id x),\<alpha>, state,locs, ev)\<in>EvalExpr" |
-   exprThis[simp,intro]: "(Var This,\<alpha>,  state, locs,  ActRef \<alpha>)\<in>EvalExpr" |
-   exprfield[simp,intro]:
-   "\<lbrakk>locs(x)=None;  state x = Some v;(v,ev)\<in>EvalValue\<rbrakk> 
-                      \<Longrightarrow>(Var (Id x),\<alpha>, state, locs, ev)\<in>EvalExpr" |
-   expradd[simp,intro]:"\<lbrakk>(e,\<alpha>,state,locs,ASPInt i)\<in>EvalExpr;(e',\<alpha>,state,locs, ASPInt i')\<in>EvalExpr\<rbrakk> 
-                      \<Longrightarrow>(e +\<^sub>A e',\<alpha>,state, locs,  ASPInt (i+i'))\<in>EvalExpr" 
+   expratom[simp,intro]: "(v,\<alpha>,state,locs,ev)\<in>EvalAtom \<Longrightarrow>(At v, \<alpha>, state,locs, ev)\<in>EvalExpr" |
+   expradd[simp,intro]:"\<lbrakk>(v,\<alpha>,state,locs,ASPInt i)\<in>EvalAtom;(v',\<alpha>,state,locs, ASPInt i')\<in>EvalAtom\<rbrakk> 
+                      \<Longrightarrow>(v +\<^sub>A v',\<alpha>,state, locs,  ASPInt (i+i'))\<in>EvalExpr" 
 
 
 lemma EvalExpr_is_deterministic[rule_format]: 
@@ -238,16 +254,21 @@ apply (rule impI)
 apply (erule EvalExpr.induct)
 apply auto
 apply (erule EvalExpr.cases,auto)
+apply (erule EvalAtom_is_deterministic,auto)
 apply (erule EvalExpr.cases,auto)
-apply (erule EvalExpr.cases,auto)
-apply (erule EvalExpr.cases,auto)
-apply (rule EvalValue_is_deterministic,auto)
-apply (erule_tac ?a1.0="e+\<^sub>Ae'"  in EvalExpr.cases,auto)
+apply (subgoal_tac "ASPInt i=ASPInt ia")
+apply (subgoal_tac "ASPInt i'=ASPInt i'a")
 apply force
+apply (erule EvalAtom_is_deterministic,force)
+apply (erule EvalAtom_is_deterministic,force)
 done
 
 abbreviation emptyEC::EContext
 where "emptyEC == (empty,[])"
+abbreviation ExprAORef where
+"ExprAORef \<gamma>\<equiv>Expr (At(Val (ActRef \<gamma>)))"
+abbreviation ExprFutRef where
+"ExprFutRef f\<equiv>Expr (At(Val (FutRef f)))"
 
 inductive reduction :: "Program\<Rightarrow>[Configuration, Configuration] => bool"  ("_\<turnstile>_\<leadsto>_" 50)
   where
@@ -285,7 +306,7 @@ AssignField  [simp, intro!]:
       state'=(map_of (zip field_list value_list))
      \<rbrakk>   
         \<Longrightarrow> P\<turnstile>Cn Activities Futures 
-             \<leadsto>Cn (Activities(\<alpha>\<mapsto>(AO C state (Some R) (locs,(x=\<^sub>AExpr (Val (ActRef \<gamma>)));;Stl) Rq))
+             \<leadsto>Cn (Activities(\<alpha>\<mapsto>(AO C state (Some R) (locs,x=\<^sub>A(ExprAORef \<gamma>);;Stl) Rq))
                              (\<gamma>\<mapsto> (AO C' state' None emptyEC [])))  
                   Futures" 
        (* new term to evaluate is artificially complex because obj ref has to be encapsulated in a value and an expression*)
@@ -297,14 +318,14 @@ AssignField  [simp, intro!]:
        Activities \<beta> = Some (AO C\<^sub>\<beta> state\<^sub>\<beta>  R\<^sub>\<beta> Ec\<^sub>\<beta> Rq\<^sub>\<beta>); 
         Ec= (locs,(x=\<^sub>A(e.\<^sub>Am(el));;Stl));
        \<alpha>\<noteq>\<beta>;
-       (e,\<alpha>,state, locs,ActRef \<beta>)\<in>EvalExpr;
+       (e,\<alpha>,state, locs,ActRef \<beta>)\<in>EvalAtom;
        f\<notin>dom Futures;   
        length value_list = length el; 
        \<forall> i<length value_list . ((el!i,\<alpha>,state, locs,value_list!i)\<in>EvalExpr) ;
        Some T=ReturnType P m C\<^sub>\<beta>
       \<rbrakk>  
       \<Longrightarrow> P\<turnstile>Cn Activities Futures 
-          \<leadsto>Cn (Activities(\<alpha>\<mapsto> (AO C state (Some R) (locs,(x=\<^sub>AExpr (Val (FutRef f)));;Stl) Rq))
+          \<leadsto>Cn (Activities(\<alpha>\<mapsto> (AO C state (Some R) (locs,(x=\<^sub>AExprFutRef f);;Stl) Rq))
                              (\<beta>\<mapsto> (AO C\<^sub>\<beta> state\<^sub>\<beta> R\<^sub>\<beta> Ec\<^sub>\<beta> (Rq\<^sub>\<beta>@[(f,m,value_list)])) )) 
               (Futures(f\<mapsto>(GetBasicType T,Undefined)))"
        (* new term to evaluate is artificially complex because fut ref has to be encapsulated in a value and an expression*)
@@ -312,14 +333,14 @@ AssignField  [simp, intro!]:
    InvkActive_Self [simp, intro!]: 
      "\<lbrakk>Activities \<alpha> = Some (AO C state (Some R) Ec Rq); 
         Ec= (locs,(x=\<^sub>A(e.\<^sub>Am(el));;Stl));
-       (e,\<alpha>,state, locs,ActRef \<alpha>)\<in>EvalExpr;
+       (e,\<alpha>,state, locs,ActRef \<alpha>)\<in>EvalAtom;
        f\<notin>dom Futures;   
        length value_list = length el; 
        \<forall> i<length value_list . ((el!i,\<alpha>,state, locs,value_list!i)\<in>EvalExpr)  ;
        Some T=ReturnType P m C
       \<rbrakk>  
       \<Longrightarrow> P\<turnstile>Cn Activities Futures 
-          \<leadsto>Cn (Activities(\<alpha>\<mapsto> (AO C state (Some R) (locs,(x=\<^sub>AExpr (Val (FutRef f)));;Stl) (Rq@[(f,m,value_list)]))) ) 
+          \<leadsto>Cn (Activities(\<alpha>\<mapsto> (AO C state (Some R) (locs,(x=\<^sub>AExprFutRef f);;Stl) (Rq@[(f,m,value_list)]))) ) 
               (Futures(f\<mapsto>(GetBasicType T,Undefined)))"
        (* new term to evaluate is artificially complex because fut ref has to be encapsulated in a value and an expression*)
 |
@@ -354,26 +375,26 @@ AssignField  [simp, intro!]:
 |
   GetRetrieve  [simp, intro!]: 
      "\<lbrakk>Activities \<alpha> = Some  (AO C state (Some R) Ec Rq);
-      Ec= (locs,(x=\<^sub>AGet e);;Stl); 
-      (e,\<alpha>,state, locs,(FutRef f))\<in>EvalExpr;
+      Ec= (locs,(x=\<^sub>AGet z);;Stl); 
+      (z,\<alpha>,state, locs,(FutRef f))\<in>EvalAtom;
      Futures f = Some (T,FutVal v)
       \<rbrakk>  
       \<Longrightarrow> P\<turnstile>Cn Activities Futures 
            \<leadsto>Cn (Activities(\<alpha>\<mapsto>(AO C state (Some R) (locs,(x=\<^sub>AGet ( (Val v)));;Stl) Rq))) Futures" 
 |
-  GetValue  [simp, intro!]: 
+  GetResolved  [simp, intro!]: 
      "\<lbrakk>Activities \<alpha> = Some  (AO C state (Some R) Ec Rq);
       Ec= (locs,(x=\<^sub>AGet e);;Stl); 
-      (Var (Id y),\<alpha>,state, locs,v)\<in>EvalExpr;
+      (Var (Id y),\<alpha>,state, locs,v)\<in>EvalAtom;
       \<not> (\<exists> f. (v=FutRef f))
       \<rbrakk>  
       \<Longrightarrow> P\<turnstile>Cn Activities Futures 
-           \<leadsto>Cn (Activities(\<alpha>\<mapsto>(AO C state (Some R) (locs,(x=\<^sub>AExpr(Val v));;Stl) Rq))) Futures" 
+           \<leadsto>Cn (Activities(\<alpha>\<mapsto>(AO C state (Some R) (locs,(x=\<^sub>AExpr(At(Val v)));;Stl) Rq))) Futures" 
 |
     IfThenElseTrue [simp, intro!]: 
      "\<lbrakk>Activities \<alpha> = Some(AO C state (Some R) Ec Rq); 
         Ec= (locs,(IF e THEN s\<^sub>t ELSE s\<^sub>e);;Stl);
-       (e,\<alpha>,state, locs,ASPBool True)\<in>EvalExpr
+       (e,\<alpha>,state, locs,ASPBool True)\<in>EvalAtom
       \<rbrakk> 
       \<Longrightarrow> P\<turnstile>Cn Activities Futures 
            \<leadsto>Cn (Activities(\<alpha>\<mapsto> (AO C (state(x\<mapsto>v)) (Some R) (locs,s\<^sub>t@Stl) Rq))) Futures"
@@ -382,7 +403,7 @@ AssignField  [simp, intro!]:
      IfThenElseFalse [simp, intro!]: 
      "\<lbrakk>Activities \<alpha> = Some(AO C state (Some R) Ec Rq); 
         Ec= (locs,(IF e THEN s\<^sub>t ELSE s\<^sub>e);;Stl);
-       (e,\<alpha>,state, locs,ASPBool False)\<in>EvalExpr
+       (e,\<alpha>,state, locs,ASPBool False)\<in>EvalAtom
       \<rbrakk> 
       \<Longrightarrow> P\<turnstile>Cn Activities Futures 
            \<leadsto>Cn (Activities(\<alpha>\<mapsto> (AO C (state(x\<mapsto>v)) (Some R) (locs,s\<^sub>e@Stl) Rq))) Futures" 

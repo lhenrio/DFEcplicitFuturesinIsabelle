@@ -28,17 +28,23 @@ where
  "Futs f = Some(T,V)
 \<Longrightarrow> P,Cn Acts Futs \<turnstile>\<^sub>V FutRef f: FutType T"  (*dynamic fut*)
 
-inductive TypeExpression :: "Program\<Rightarrow>Configuration\<Rightarrow> (VarName \<rightharpoonup>ASPType)\<Rightarrow> ClassName\<Rightarrow>Expression \<Rightarrow>ASPType \<Rightarrow> bool"  ("_,_,_ in _\<turnstile>\<^sub>E_:_" 50)
+inductive TypeAtom :: "Program\<Rightarrow>Configuration\<Rightarrow> (VarName \<rightharpoonup>ASPType)\<Rightarrow> ClassName\<Rightarrow>Atom \<Rightarrow>ASPType \<Rightarrow> bool"  ("_,_,_ in _\<turnstile>\<^sub>A_:_" 50)
  where
- " P,Config \<turnstile>\<^sub>V v:T \<Longrightarrow> P,config,\<Gamma> in C \<turnstile>\<^sub>E Val v:T"
+ " P,Config \<turnstile>\<^sub>V v:T \<Longrightarrow> P,config,\<Gamma> in C \<turnstile>\<^sub>A Val v:T"
 |
-" P,Cn Acts Futs,\<Gamma> in C \<turnstile>\<^sub>E Var This:  BType (TObj C)  (*This*)
+" P,Cn Acts Futs,\<Gamma> in C \<turnstile>\<^sub>A Var This:  BType (TObj C)  (*This*)
   " 
 |
-" \<Gamma> x = Some T \<Longrightarrow>P,Cn Acts Futs,\<Gamma>  in C\<turnstile>\<^sub>E Var (Id x) : T (* Var or field reference *)
+" \<Gamma> x = Some T \<Longrightarrow>P,Cn Acts Futs,\<Gamma>  in C\<turnstile>\<^sub>A Var (Id x) : T (* Var or field reference *)
   "
 |
-"\<lbrakk> P,Config,\<Gamma> in C \<turnstile>\<^sub>E e:BType Integer; P,Config,\<Gamma> in C \<turnstile>\<^sub>E e':BType Integer
+"P\<turnstile>T\<sqsubseteq>T' \<Longrightarrow>  P,Config,\<Gamma> in C \<turnstile>\<^sub>A e:T \<Longrightarrow> P,Config,\<Gamma> in C \<turnstile>\<^sub>A e:T' " (* subtype*)
+
+inductive TypeExpression :: "Program\<Rightarrow>Configuration\<Rightarrow> (VarName \<rightharpoonup>ASPType)\<Rightarrow> ClassName\<Rightarrow>Expression \<Rightarrow>ASPType \<Rightarrow> bool"  ("_,_,_ in _\<turnstile>\<^sub>E_:_" 50)
+ where
+ " P,Config,\<Gamma> in C \<turnstile>\<^sub>A  v:T \<Longrightarrow> P,Config,\<Gamma> in C \<turnstile>\<^sub>E At v:T"
+|
+"\<lbrakk> P,Config,\<Gamma> in C \<turnstile>\<^sub>A e:BType Integer; P,Config,\<Gamma> in C \<turnstile>\<^sub>A e':BType Integer
 \<rbrakk> \<Longrightarrow>
 P,Config,\<Gamma> in C \<turnstile>\<^sub>Ee+\<^sub>Ae':BType Integer"
 |
@@ -50,17 +56,17 @@ inductive TypeRhs  :: "Program\<Rightarrow>Configuration\<Rightarrow> (VarName \
   (* Expression *)
  " P,Config,\<Gamma> in C \<turnstile>\<^sub>E e:T \<Longrightarrow> P,Config,\<Gamma> in C \<turnstile>\<^sub>R (Expr e):T"
 |  (* method call*)
- "\<lbrakk> P,Config,\<Gamma> in C \<turnstile>\<^sub>E e:BType (TObj C') ; fetchClass P C' = Some Class;
+ "\<lbrakk> P,Config,\<Gamma> in C \<turnstile>\<^sub>A z:BType (TObj C') ; fetchClass P C' = Some Class;
    fetchMethodInClass Class m = Some Meth;
    param_types= map fst (MParams Meth) ; length param_types = length el ; \<forall> i<length el. (P,Config,\<Gamma> in C \<turnstile>\<^sub>E el!i:(param_types!i)) \<rbrakk>
-\<Longrightarrow> P,Config,\<Gamma> in C \<turnstile>\<^sub>R (e.\<^sub>Am(el)):MakeFutureType (MRType Meth)"
+\<Longrightarrow> P,Config,\<Gamma> in C \<turnstile>\<^sub>R (z.\<^sub>Am(el)):MakeFutureType (MRType Meth)"
 |  (* new active *)
 "\<lbrakk>  fetchClass P C' = Some Class;
    Class_param_types = map fst (ClassParameters Class);
    length Class_param_types = length el ; \<forall> i<length el. (P,Config,\<Gamma> in C \<turnstile>\<^sub>E el!i:(Class_param_types!i)) \<rbrakk>
 \<Longrightarrow> P,Config,\<Gamma> in C \<turnstile>\<^sub>R (newActive C'(el)):BType (TObj C')"
 | (* Get *)
-" P,Config,\<Gamma> in C \<turnstile>\<^sub>E e:(FutType T)    \<Longrightarrow> P,Config,\<Gamma> in C \<turnstile>\<^sub>R (Get e):BType (T)"
+" P,Config,\<Gamma> in C \<turnstile>\<^sub>A a:(FutType T)    \<Longrightarrow> P,Config,\<Gamma> in C \<turnstile>\<^sub>R (Get a):BType (T)"
 |
 "P\<turnstile>T\<sqsubseteq>T' \<Longrightarrow>  P,Config,\<Gamma> in C \<turnstile>\<^sub>R e:T \<Longrightarrow> P,Config,\<Gamma> in C \<turnstile>\<^sub>R e:T' "   (* subtype*)
 
@@ -81,10 +87,10 @@ P,Config,\<Gamma> in C \<turnstile>\<^sub>S (x=\<^sub>A a) "
 P,Config,\<Gamma> in C \<turnstile>\<^sub>S return e "
 |
  "\<lbrakk>
-   P,Config,\<Gamma> in C \<turnstile>\<^sub>E e:BType Boolean; 
+   P,Config,\<Gamma> in C \<turnstile>\<^sub>A z:BType Boolean; 
    P,Config,\<Gamma> in C \<turnstile>\<^sub>L sl;  P,Config,\<Gamma> in C \<turnstile>\<^sub>L sl'
 \<rbrakk> \<Longrightarrow>
-P,Config,\<Gamma> in C \<turnstile>\<^sub>S IF e THEN sl ELSE sl' "
+P,Config,\<Gamma> in C \<turnstile>\<^sub>S IF z THEN sl ELSE sl' "
 |
 "P,Config,\<Gamma> in C \<turnstile>\<^sub>L [] "
 |
@@ -114,7 +120,7 @@ where
     length vl = length param_types ;  \<forall> i <length vl . (P, Cn Acts Futs\<turnstile>\<^sub>V(vl!i):(param_types!i));
     Futs f = Some (T, Undefined); T=GetBasicType (MRType Meth)
 \<rbrakk>
-\<Longrightarrow>P,Cn Acts Fut in C\<turnstile>\<^sub>Q(f,m,vl)"
+\<Longrightarrow>P,Cn Acts Futs in C\<turnstile>\<^sub>Q(f,m,vl)"
 
 primrec TypeConfig :: "Program \<Rightarrow>Configuration \<Rightarrow>bool" ("_ \<turnstile> _ " 50)
 where
