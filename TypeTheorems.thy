@@ -65,14 +65,19 @@ apply (erule TypeValue.cases,auto)
 apply (rule TypeValue.intros,force)
 done
 
+
 lemma TypeAtom_extendconfiguration_AO[rule_format]:
-"P,Cn aos futs,\<Gamma> in C\<turnstile>\<^sub>Az:T \<Longrightarrow> (aos \<alpha> = None \<longrightarrow> ( P,Cn (\<lambda>a. if a = \<alpha> then Some X else aos a)  futs ,\<Gamma> in C\<turnstile>\<^sub>Az:T))"
+"P,Cn aos futs,\<Gamma> in C\<turnstile>\<^sub>Az:T \<Longrightarrow> ((case AOs \<alpha> of Some (AO C' st' R' Ec' Rq') \<Rightarrow> C''=C' | None \<Rightarrow> True) \<longrightarrow> 
+          ( P,Cn (\<lambda>a. if a = \<alpha> then Some (AO C'' state R Ec Rq) else aos a)  futs ,\<Gamma> in C\<turnstile>\<^sub>Az:T))"
 apply (erule  "TypeAtom.induct",auto)
     apply (rule  "TypeValue.cases",auto)
         apply (rule  "TypeAtom.intros",(auto)?)+
 done
+
+
 lemma TypeExpression_extendconfiguration_AO[rule_format]:
-"P,Cn aos futs,\<Gamma> in C\<turnstile>\<^sub>Ee:T \<Longrightarrow> (aos \<alpha> = None \<longrightarrow> ( P,Cn (\<lambda>a. if a = \<alpha> then Some X else aos a)  futs ,\<Gamma> in C\<turnstile>\<^sub>Ee:T))"
+"P,Cn aos futs,\<Gamma> in C\<turnstile>\<^sub>Ee:T \<Longrightarrow> ((case AOs \<alpha> of Some (AO C' st' R' Ec' Rq') \<Rightarrow> C''=C' | None \<Rightarrow> True) \<longrightarrow> 
+          ( P,Cn (\<lambda>a. if a = \<alpha> then Some (AO C'' state R Ec Rq) else aos a)  futs ,\<Gamma> in C\<turnstile>\<^sub>Ee:T))"
 apply (erule  "TypeExpression_induct_Config",auto)
   apply (rule  "TypeExpression.intros",(auto)?)+
   apply (rule  "TypeAtom_extendconfiguration_AO",auto)
@@ -83,7 +88,8 @@ apply (rule  "TypeExpression.intros",auto)
 done
 
 lemma TypeRhs_extendconfiguration_AO[rule_format]:
-"P,Cn aos futs,\<Gamma> in C\<turnstile>\<^sub>Ra:T \<Longrightarrow> (aos \<alpha> = None \<longrightarrow>(P,Cn (\<lambda>a. if a = \<alpha> then Some X else aos a) futs,\<Gamma> in C\<turnstile>\<^sub>Ra:T))"
+"P,Cn aos futs,\<Gamma> in C\<turnstile>\<^sub>Ra:T \<Longrightarrow> ((case AOs \<alpha> of Some (AO C' st' R' Ec' Rq') \<Rightarrow> C''=C' | None \<Rightarrow> True)
+  \<longrightarrow>(P,Cn (\<lambda>a. if a = \<alpha> then Some (AO C'' state R Ec Rq) else aos a) futs,\<Gamma> in C\<turnstile>\<^sub>Ra:T))"
 apply (erule  "TypeRhs_induct_Config",auto)
 (*5*)
     apply (rule  "TypeRhs.intros",(auto)?)
@@ -103,17 +109,19 @@ done
 
 
 lemma TypeStatement_extendconfiguration_AO_Pre[rule_format]:
-" ((P,Cn AOs futs,\<Gamma> in C \<turnstile>\<^sub>S S) \<longrightarrow> (\<forall> \<alpha> X. \<alpha>\<notin>(dom AOs)\<longrightarrow> (P, Cn (AOs(\<alpha>\<mapsto>X)) futs,\<Gamma> in C \<turnstile>\<^sub>S S))) \<and> 
-  ((P, Cn AOs futs,\<Gamma> in C \<turnstile>\<^sub>L Stl) \<longrightarrow> (\<forall> \<alpha> X. \<alpha>\<notin>(dom AOs)\<longrightarrow> (P, Cn (AOs(\<alpha>\<mapsto>X)) futs,\<Gamma> in C \<turnstile>\<^sub>L Stl)))"
+" ((P,Cn AOs futs,\<Gamma> in C \<turnstile>\<^sub>S S) \<longrightarrow> (\<forall> \<alpha> X. (case AOs \<alpha> of Some (AO C' st' R' Ec' Rq') \<Rightarrow> C''=C' | None \<Rightarrow> True)
+                    \<longrightarrow> (P, Cn (AOs(\<alpha>\<mapsto>(AO C'' state R Ec Rq))) futs,\<Gamma> in C \<turnstile>\<^sub>S S))) \<and> 
+  ((P, Cn AOs futs,\<Gamma> in C \<turnstile>\<^sub>L Stl) \<longrightarrow> (\<forall> \<alpha> X. (case AOs \<alpha> of Some (AO C' st' R' Ec' Rq') \<Rightarrow> C''=C' | None \<Rightarrow> True)
+                    \<longrightarrow> (P, Cn (AOs(\<alpha>\<mapsto>(AO C'' state R Ec Rq))) futs,\<Gamma> in C \<turnstile>\<^sub>L Stl)))"
 apply (rule TypeStatement_TypeStatementList_induct_Config,auto)
 (*5*)
     apply (rule  "TypeStatement_TypeStatementList.intros",auto)
-    apply (erule TypeRhs_extendconfiguration_AO,auto)
-   apply (rule  "TypeStatement_TypeStatementList.intros",auto)
-   apply (erule TypeExpression_extendconfiguration_AO,auto)
+    apply (erule_tac AOs=aos in TypeRhs_extendconfiguration_AO,auto)
+   apply (rule "TypeStatement_TypeStatementList.intros",force,auto)
+   apply (erule_tac AOs=aos in TypeExpression_extendconfiguration_AO,auto)
   apply (rule  "TypeStatement_TypeStatementList.intros")
 (*5*)
-    apply (erule TypeAtom_extendconfiguration_AO,auto)
+    apply (erule_tac AOs=aos in TypeAtom_extendconfiguration_AO,auto)
  apply (rule  "TypeStatement_TypeStatementList.intros")
 apply (rule  "TypeStatement_TypeStatementList.intros")
  apply auto
@@ -121,11 +129,13 @@ done
 
 (* GLOBAL LEMMAS *)
 lemma TypeStatement_extendconfiguration_AO:
-" (P,Cn AOs futs,\<Gamma> in C \<turnstile>\<^sub>S S) \<Longrightarrow>\<alpha>\<notin>(dom AOs) \<Longrightarrow>P, Cn (AOs(\<alpha>\<mapsto>X)) futs,\<Gamma> in C \<turnstile>\<^sub>S S"
+" (P,Cn AOs futs,\<Gamma> in C \<turnstile>\<^sub>S S) \<Longrightarrow>(case AOs \<alpha> of Some (AO C' st' R' Ec' Rq') \<Rightarrow> C''=C' | None \<Rightarrow> True) 
+          \<Longrightarrow>P, Cn (AOs(\<alpha>\<mapsto>(AO C'' state R Ec Rq))) futs,\<Gamma> in C \<turnstile>\<^sub>S S"
 by (insert TypeStatement_extendconfiguration_AO_Pre, auto)
 
 lemma TypeStatementList_extendconfiguration_AO:
-" (P,Cn AOs futs,\<Gamma> in C \<turnstile>\<^sub>L Stl) \<Longrightarrow>\<alpha>\<notin>(dom AOs) \<Longrightarrow>P, Cn (AOs(\<alpha>\<mapsto>X)) futs,\<Gamma> in C \<turnstile>\<^sub>L Stl"
+" (P,Cn AOs futs,\<Gamma> in C \<turnstile>\<^sub>L Stl) \<Longrightarrow>(case AOs \<alpha> of Some (AO C' st' R' Ec' Rq') \<Rightarrow> C''=C' | None \<Rightarrow> True) 
+          \<Longrightarrow>P, Cn (AOs(\<alpha>\<mapsto>(AO C'' state R Ec Rq))) futs,\<Gamma> in C \<turnstile>\<^sub>L Stl"
 by (insert TypeStatement_extendconfiguration_AO_Pre, auto)
 
 section{* extending set of futs in config *}
@@ -200,11 +210,13 @@ by (insert TypeStatement_extendconfiguration_futs_Pre,case_tac Y, simp)
 
 section {* extend AOs and futs *}
 lemma TypeStatement_extendconfiguration:
-" (P,Cn AOs futs,\<Gamma> in C \<turnstile>\<^sub>S S) \<Longrightarrow>\<alpha>\<notin>dom AOs \<Longrightarrow>f\<notin>(dom futs) \<Longrightarrow>P, Cn (AOs(\<alpha>\<mapsto>X)) (futs(f\<mapsto>Y)),\<Gamma> in C \<turnstile>\<^sub>S S"
+" (P,Cn AOs futs,\<Gamma> in C \<turnstile>\<^sub>S S) \<Longrightarrow>(case AOs \<alpha> of Some (AO C' st' R' Ec' Rq') \<Rightarrow> C''=C' | None \<Rightarrow> True) \<Longrightarrow>f\<notin>(dom futs) 
+                \<Longrightarrow>P, Cn (AOs(\<alpha>\<mapsto>(AO C'' state R Ec Rq))) (futs(f\<mapsto>Y)),\<Gamma> in C \<turnstile>\<^sub>S S"
 by (insert TypeStatement_extendconfiguration_futs,insert TypeStatement_extendconfiguration_AO, auto)
 
 lemma TypeStatementList_extendconfiguration:
-" (P,Cn AOs futs,\<Gamma> in C \<turnstile>\<^sub>L Stl) \<Longrightarrow>\<alpha>\<notin>dom AOs \<Longrightarrow>f\<notin>(dom futs) \<Longrightarrow>P, Cn (AOs(\<alpha>\<mapsto>X)) (futs(f\<mapsto>Y)),\<Gamma> in C \<turnstile>\<^sub>L Stl"
+" (P,Cn AOs futs,\<Gamma> in C \<turnstile>\<^sub>L Stl) \<Longrightarrow>(case AOs \<alpha> of Some (AO C' st' R' Ec' Rq') \<Rightarrow> C''=C' | None \<Rightarrow> True) 
+                 \<Longrightarrow>f\<notin>(dom futs) \<Longrightarrow>P, Cn (AOs(\<alpha>\<mapsto>(AO C'' state R Ec Rq))) (futs(f\<mapsto>Y)),\<Gamma> in C \<turnstile>\<^sub>L Stl"
 by (insert TypeStatementList_extendconfiguration_futs,insert TypeStatementList_extendconfiguration_AO, auto)
 
 section {* compositional lemmas for WT *}
@@ -227,57 +239,69 @@ lemma TypeUpdate_AO:  "P \<turnstile> Cn AOs Futures  \<Longrightarrow>
         )) ) ) )))
 \<Longrightarrow> P \<turnstile> Cn (AOs(\<alpha> \<mapsto> AO C state R Ec Rq)) Futures "
 apply (clarsimp,auto)
-  apply (clarsimp simp: ran_def)
-  apply (case_tac "a = \<alpha>",simp,force)
-apply clarsimp
+ apply (clarsimp simp: ran_def)
+ apply (case_tac "a = \<alpha>",simp,force)
+(*activity not alpha *)
+ apply clarsimp
  apply (case_tac Act,clarsimp)
-
-apply (drule_tac x= "(AO x1 x2 x3 (aa, b) x5)" in spec)
-apply clarsimp
-apply (erule impE,force)
-apply clarsimp
+ apply (drule_tac x= "(AO x1 x2 x3 (aa, b) x5)" in spec)
+ apply clarsimp
+ apply (erule impE,force)
+ apply clarsimp
  apply (intro allI conjI)
-apply clarsimp
-apply (drule_tac x=x in spec)+
-apply (drule_tac x=v in spec)+
-apply clarsimp
-apply (rule_tac x=T in exI)
-apply clarsimp
+(*4*)
+   apply clarsimp
+   apply (drule_tac x=x in spec)+
+   apply (drule_tac x=v in spec)+
+   apply clarsimp
+   apply (rule_tac x=T in exI)
+   apply clarsimp
+   apply (erule TypeValue_extendconfiguration_AO)
+   apply clarsimp
+
+(*3 Q*)
+  apply clarsimp
+  apply (rename_tac a)
+(* one of the pending request *)
+  apply (drule_tac x="(ab, ac, a)" in bspec,simp)
+  apply (erule TypeRequest.cases)
+  apply (rule_tac Meth=Meth in TypeRequest.intros)
+         apply auto
+  apply (drule_tac x=i in spec,clarsimp)
+  apply (rule TypeValue_extendconfiguration_AO)
+   apply clarsimp+
+
+(*2 the current req*)
+ apply (case_tac x3,auto)
+  apply (erule TypeRequest.cases)
+  apply (rule_tac Meth=Meth in TypeRequest.intros)
+        apply auto
+  apply (drule_tac x=i in spec,clarsimp)
+  apply (rule TypeValue_extendconfiguration_AO)
+   apply auto
+ apply (drule_tac x=x in bspec,auto)
+ apply (erule_tac \<alpha>=\<alpha> in TypeStatement_extendconfiguration_AO)
+ apply simp
+
+(*1 Finally: futures *)
+apply (drule_tac x="(a,b)" in bspec)
+ apply simp
+apply(case_tac b)
+ apply auto
 apply (erule TypeValue_extendconfiguration_AO)
 apply clarsimp
+done
 
-(*Q*)
-apply clarsimp
-apply (rename_tac a)
-(* one of the pending request *)
-apply (drule_tac x="(ab, ac, a)" in bspec,simp)
-apply (erule TypeRequest.cases)
-apply (rule_tac Meth=Meth in TypeRequest.intros)
-apply auto
-apply (drule_tac x=i in spec,clarsimp)
-apply (rule TypeValue_extendconfiguration_AO)
-apply clarsimp+
-
-(* the current req*)
-apply (case_tac x3,auto)
-apply (erule TypeRequest.cases)
-apply (rule_tac Meth=Meth in TypeRequest.intros)
-apply auto
-apply (drule_tac x=i in spec,clarsimp)
-apply (rule TypeValue_extendconfiguration_AO)
-apply auto
-apply (drule_tac x=x in bspec,auto)
-apply (rule TypeStatement_extendconfiguration_AO)
 
 section{* Well-typed initial configuraiton *}
 
 theorem WTinitialconfiguration: "\<turnstile>\<^sub>P Prog  CL Vars Stl \<Longrightarrow> Prog  ((MainObjClass Vars)#CL) Vars Stl \<turnstile> InitialConfiguration (Prog  CL Vars Stl)"
 apply (unfold InitialConfiguration_def BuildInitialConfigurationfromVarsStl_def)
 apply (auto,unfold Let_def fetchClass_def fetchMethodInClass_def MainObjClass_def MainMethodEmptyBody_def,auto)
- apply (intro gASPFuturesTypeSystem.TypeRequest.intros, auto simp: fetchClass_def fetchMethodInClass_def )
+ apply (intro gASPFuturesTypeSystem.TypeRequest.intros, auto simp: fetchClass_def fetchMethodInClass_def GetBasicType_def)
 apply (rule TypeStatementList_TypeStatement,auto)
 apply (unfold BuildTypeEnv_def)
-apply (rule_tac AOs="empty"  in TypeStatementList_extendconfiguration_AO)
+apply (rule_tac AOs="empty"  in TypeStatementList_extendconfiguration)
   apply (auto)
 done
 
