@@ -54,7 +54,8 @@ done
 section{* extending set of AOs in config *}
 
 lemma TypeValue_extendconfiguration_AO[rule_format]:
-"P,Cn AOs Futures\<turnstile>\<^sub>Vv:T \<Longrightarrow> (case AOs \<alpha> of Some (AO C' st' R' Ec' Rq') \<Rightarrow> C=C' | None \<Rightarrow> True) \<Longrightarrow>(P,Cn (AOs(\<alpha> \<mapsto> AO C state R Ec Rq)) Futures\<turnstile>\<^sub>Vv:T)"
+"P,Cn AOs Futures\<turnstile>\<^sub>Vv:T \<Longrightarrow> (case AOs \<alpha> of Some (AO C' st' R' Ec' Rq') \<Rightarrow> C=C' | None \<Rightarrow> True) 
+    \<Longrightarrow>(P,Cn  (AOs(\<alpha>\<mapsto> (AO C state R Ec Rq))) Futures\<turnstile>\<^sub>Vv:T)"
 apply (erule TypeValue.cases,auto)
     apply (rule TypeValue.intros)
    apply (rule TypeValue.intros)
@@ -62,7 +63,20 @@ apply (erule TypeValue.cases,auto)
  apply (case_tac "\<alpha>=\<alpha>'")
   apply (rule TypeValue.intros,force)
  apply (rule TypeValue.intros,force)
-apply (rule TypeValue.intros,force)
+apply (rule TypeValue.intros,simp)
+done
+
+lemma TypeValue_extendconfiguration_AO_lambda[rule_format]:
+"P,Cn AOs Futures\<turnstile>\<^sub>Vv:T \<Longrightarrow> (case AOs \<alpha> of Some (AO C' st' R' Ec' Rq') \<Rightarrow> C=C' | None \<Rightarrow> True) 
+    \<Longrightarrow>(P,Cn ( (\<lambda>a. if a = \<alpha> then Some (AO C state R Ec Rq) else AOs a) ) Futures\<turnstile>\<^sub>Vv:T)"
+apply (erule TypeValue.cases,auto)
+    apply (rule TypeValue.intros)
+   apply (rule TypeValue.intros)
+  apply (rule TypeValue.intros)
+ apply (case_tac "\<alpha>=\<alpha>'")
+  apply (rule TypeValue.intros,force)
+ apply (rule TypeValue.intros,simp)
+apply (rule TypeValue.intros,simp)
 done
 
 
@@ -125,6 +139,17 @@ apply (rule TypeStatement_TypeStatementList_induct_Config,auto)
  apply (rule  "TypeStatement_TypeStatementList.intros")
 apply (rule  "TypeStatement_TypeStatementList.intros")
  apply auto
+done
+
+lemma TypeRequest_extendconfiguration_AO[rule_format]:
+"P,Cn AOs futs in C\<turnstile>\<^sub>Q (f,m,vl) \<Longrightarrow> ((case AOs \<alpha> of Some (AO C' st' R' Ec' Rq') \<Rightarrow> C''=C' | None \<Rightarrow> True)
+  \<longrightarrow>(P,Cn (\<lambda>a. if a = \<alpha> then Some (AO C'' state R Ec Rq) else AOs a) futs in C\<turnstile>\<^sub>Q (f,m,vl)))"
+apply (erule TypeRequest.cases,auto)
+apply (rule TypeRequest.intros,auto)
+apply (drule_tac x=i in spec)
+apply clarsimp
+apply (rule_tac TypeValue_extendconfiguration_AO_lambda)
+apply auto
 done
 
 (* GLOBAL LEMMAS *)
@@ -197,6 +222,12 @@ apply (rule TypeStatement_TypeStatementList_induct_Config,auto)
 apply (rule  "TypeStatement_TypeStatementList.intros")
  apply (drule_tac x=f in spec,auto)+
 done
+
+lemma TypeRequest_extendconfiguration_futs[rule_format]:
+"P,Cn AOs futs in C\<turnstile>\<^sub>Q (f,m,vl) \<Longrightarrow> (futs f = None
+  \<longrightarrow>(P,Cn AOs (\<lambda>a. if a = f then Some Y else futs a) in C\<turnstile>\<^sub>Q (f,m,vl)))"
+by (erule TypeRequest.cases,auto)
+
 
 (* GLOBAL LEMMAS *)
 lemma TypeStatement_extendconfiguration_futs:
@@ -272,13 +303,10 @@ apply (clarsimp,auto)
    apply clarsimp+
 
 (*2 the current req*)
- apply (case_tac x3,auto)
-  apply (erule TypeRequest.cases)
-  apply (rule_tac Meth=Meth in TypeRequest.intros)
-        apply auto
-  apply (drule_tac x=i in spec,clarsimp)
-  apply (rule TypeValue_extendconfiguration_AO)
-   apply auto
+ apply (case_tac x3,auto) 
+  apply (simp add: Fun.fun_upd_def)
+  apply (erule TypeRequest_extendconfiguration_AO)
+  apply auto
  apply (drule_tac x=x in bspec,auto)
  apply (erule_tac \<alpha>=\<alpha> in TypeStatement_extendconfiguration_AO)
  apply simp
@@ -314,4 +342,26 @@ theorem SubjectReduction:
     \<Longrightarrow> (Prog CL Vars Stl \<turnstile> Cn aos futs)  \<longrightarrow> (Prog CL Vars Stl \<turnstile> Cn aos' futs')"
 apply (erule gASPFutures.reduction.induct)
 (* 11 SERVE *)
+apply (intro impI)
+apply (rule TypeUpdate_AO)
+apply clarsimp+
+apply (drule_tac x="AO C state None (a, b) ((f, m, vl) # Rq)" in bspec)
+apply (force simp: ran_def)
+apply simp
+apply clarify
+apply (rule_tac x=CL in exI)
 apply clarsimp
+apply (intro conjI)
+apply clarsimp
+apply (drule_tac x=x in spec, drule_tac x=v in spec)
+apply clarsimp
+apply (rule_tac x=T in exI)
+apply clarsimp
+apply (erule TypeValue_extendconfiguration_AO,clarsimp)
+
+apply clarsimp
+apply (rename_tac a b c)
+apply (drule_tac x="(a,b,c)" in bspec,simp)
+apply (erule TypeRequest_extendconfiguration_AO)
+
+apply (intro conjI)
