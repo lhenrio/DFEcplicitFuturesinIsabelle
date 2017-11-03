@@ -213,4 +213,12 @@ by ( auto simp: listunionMap_def)
 lemma listunionMap_Cons[simp]: "listunionMap f (x#L) = (f x) \<union> (listunionMap f L)"
 by ( auto simp: listunionMap_def)
 
+
+lemma find_Some[rule_format]:
+"find (P) X = Some M \<longrightarrow> M \<in> set X"
+by (induct_tac X,auto)
+lemma find_Some_P[rule_format]:
+"find (P) X = Some M \<longrightarrow> P M"
+by (induct_tac X,auto)
+
 end

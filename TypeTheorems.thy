@@ -50,7 +50,17 @@ apply (induct_tac Stl)
 apply (drule TypeStatementList.cases,auto)
 done
 
+lemma fetchClass_Some_In[rule_format]:
+ "fetchClass (Prog CL Vars Stl) C = Some CLa \<Longrightarrow> CLa\<in>set CL"
+by (unfold fetchClass_def, rule find_Some,auto)
 
+lemma fetchClass_Some_Name[rule_format]:
+ "fetchClass (Prog CL Vars Stl) C = Some CLa \<Longrightarrow> Name CLa=C"
+by (unfold fetchClass_def,simp,drule find_Some_P,simp)
+
+lemma fetchMethodInClass_Some:
+ "fetchMethodInClass C m = Some M \<Longrightarrow> M \<in> set (Methods C)"
+by (unfold fetchMethodInClass_def, rule find_Some,auto)
 section{* extending set of AOs in config *}
 
 lemma TypeValue_extendconfiguration_AO[rule_format]:
@@ -320,6 +330,79 @@ apply (erule TypeValue_extendconfiguration_AO)
 apply clarsimp
 done
 
+section{*Type-empty-config*}
+
+lemma  TypeValue_EmptyConfig_pre: 
+  "(P,Cnf\<turnstile>\<^sub>Vv:T) \<Longrightarrow>(Cnf=EmptyConfig  \<longrightarrow>(P,Config\<turnstile>\<^sub>Vv:T))"
+apply (erule TypeValue.induct,auto)
+apply (rule TypeValue.intros)+
+done
+lemma  TypeValue_EmptyConfig: 
+  "(P,EmptyConfig\<turnstile>\<^sub>Vv:T) \<Longrightarrow>(P,Config\<turnstile>\<^sub>Vv:T)"
+by (drule TypeValue_EmptyConfig_pre,auto)
+
+lemma  TypeAtom_EmptyConfig_pre: 
+  "(P,Cnf,\<Gamma> in C\<turnstile>\<^sub>Av:T) \<Longrightarrow>(Cnf=EmptyConfig  \<longrightarrow>(P,Config,\<Gamma> in C\<turnstile>\<^sub>Av:T))"
+apply (erule TypeAtom.induct,auto)
+apply (rule TypeAtom.intros)
+apply (erule TypeValue_EmptyConfig)
+apply (rule TypeAtom.intros)
+apply (erule TypeAtom.intros)
+apply (erule TypeAtom.intros,simp)
+done
+lemma  TypeAtom_EmptyConfig: 
+"(P,EmptyConfig,\<Gamma> in C\<turnstile>\<^sub>Av:T) \<Longrightarrow>(P,Config,\<Gamma> in C\<turnstile>\<^sub>Av:T)"
+by (drule TypeAtom_EmptyConfig_pre,auto)
+
+lemma  TypeExpression_EmptyConfig_pre: 
+  "(P,Cnf,\<Gamma> in C\<turnstile>\<^sub>Ee:T) \<Longrightarrow>(Cnf=EmptyConfig  \<longrightarrow>(P,Config,\<Gamma> in C\<turnstile>\<^sub>Ee:T))"
+apply (erule TypeExpression.induct,auto)
+apply (rule TypeExpression.intros)
+apply (erule TypeAtom_EmptyConfig)
+apply (rule TypeExpression.intros)
+apply (erule TypeAtom_EmptyConfig)
+apply (erule TypeAtom_EmptyConfig)
+apply (erule TypeExpression.intros,simp)
+done
+lemma  TypeExpression_EmptyConfig: 
+"(P,EmptyConfig,\<Gamma> in C\<turnstile>\<^sub>Ee:T) \<Longrightarrow>(P,Config,\<Gamma> in C\<turnstile>\<^sub>Ee:T)"
+by (drule TypeExpression_EmptyConfig_pre,auto)
+
+lemma TypeRhs_EmptyConfig_pre:
+"(P,Cnf,\<Gamma> in C\<turnstile>\<^sub>RR:T) \<Longrightarrow>(Cnf=EmptyConfig  \<longrightarrow>(P,Config,\<Gamma> in C\<turnstile>\<^sub>RR:T))"
+apply (drule TypeRhs.induct,auto)
+apply (rule TypeRhs.intros)
+apply (erule TypeExpression_EmptyConfig)
+apply (rule TypeRhs.intros,auto)
+apply (erule TypeAtom_EmptyConfig)
+apply (drule_tac x=i in spec,simp)
+apply (erule TypeExpression_EmptyConfig)
+apply (rule TypeRhs.intros,auto)
+apply (drule_tac x=i in spec,simp)
+apply (erule TypeExpression_EmptyConfig)
+apply (rule TypeRhs.intros)
+apply (erule TypeAtom_EmptyConfig)
+apply (rule TypeRhs.intros,auto)
+done
+lemma  TypeRhs_EmptyConfig: 
+"(P,EmptyConfig,\<Gamma> in C\<turnstile>\<^sub>RR:T) \<Longrightarrow>(P,Config,\<Gamma> in C\<turnstile>\<^sub>RR:T)"
+by (drule TypeRhs_EmptyConfig_pre,auto)
+
+lemma Type_EmptyConfig_Stl_pre: "((P,Cnf,\<Gamma> in C \<turnstile>\<^sub>S S) \<longrightarrow>(Cnf=EmptyConfig \<longrightarrow>(P,Config,\<Gamma> in C \<turnstile>\<^sub>S S))) \<and>
+                             ((P,Cnf,\<Gamma> in C \<turnstile>\<^sub>L Stl) \<longrightarrow> (Cnf=EmptyConfig \<longrightarrow>(P,Config,\<Gamma> in C \<turnstile>\<^sub>L Stl)))"
+apply (rule TypeStatement_TypeStatementList.induct,auto)
+apply (rule TypeStatement_TypeStatementList.intros,auto)
+apply (erule TypeRhs_EmptyConfig)
+apply (rule TypeStatement_TypeStatementList.intros,auto)
+apply (erule TypeExpression_EmptyConfig)
+apply (rule TypeStatement_TypeStatementList.intros,auto)
+apply (erule TypeAtom_EmptyConfig)
+apply (rule TypeStatement_TypeStatementList.intros)
+apply (rule TypeStatement_TypeStatementList.intros,auto)
+done
+lemma  TypeStl_EmptyConfig: 
+"(P,EmptyConfig,\<Gamma> in C \<turnstile>\<^sub>L Stl) \<Longrightarrow>(P,Config,\<Gamma> in C \<turnstile>\<^sub>L Stl)"
+by (insert Type_EmptyConfig_Stl_pre,auto)
 
 section{* Well-typed initial configuraiton *}
 
@@ -338,10 +421,11 @@ section {* Subject Reduction *}
 
 
 theorem SubjectReduction: 
-"Prog CL Vars Stl \<turnstile> Cn aos futs   \<leadsto> Cn aos' futs' 
-    \<Longrightarrow> (Prog CL Vars Stl \<turnstile> Cn aos futs)  \<longrightarrow> (Prog CL Vars Stl \<turnstile> Cn aos' futs')"
+"Prog CL Vars Stl \<turnstile> Cn aos futs   \<leadsto> Cn aos' futs' \<Longrightarrow> \<turnstile>\<^sub>P Prog  CL Vars Stl
+    \<longrightarrow> ((Prog CL Vars Stl \<turnstile> Cn aos futs)  \<longrightarrow> (Prog CL Vars Stl \<turnstile> Cn aos' futs'))"
 apply (erule gASPFutures.reduction.induct)
 (* 11 SERVE *)
+apply (case_tac P, rename_tac CL Vars Stl, simp only: Let_def)
 apply (intro impI)
 apply (rule TypeUpdate_AO)
 apply clarsimp+
@@ -349,7 +433,7 @@ apply (drule_tac x="AO C state None (a, b) ((f, m, vl) # Rq)" in bspec)
 apply (force simp: ran_def)
 apply simp
 apply clarify
-apply (rule_tac x=CL in exI)
+apply (rule_tac x=CLa in exI)
 apply clarsimp
 apply (intro conjI)
 apply clarsimp
@@ -358,10 +442,58 @@ apply clarsimp
 apply (rule_tac x=T in exI)
 apply clarsimp
 apply (erule TypeValue_extendconfiguration_AO,clarsimp)
-
+(*12*)
 apply clarsimp
 apply (rename_tac a b c)
 apply (drule_tac x="(a,b,c)" in bspec,simp)
+apply (simp add: fun_upd_def)
 apply (erule TypeRequest_extendconfiguration_AO)
-
+apply force
+(*11*)
+apply (simp add: Bind_def )
+apply (case_tac "fetchMethodInClass CLa m",clarsimp)
+apply clarsimp
 apply (intro conjI)
+apply (simp add: fun_upd_def,erule TypeRequest_extendconfiguration_AO,force)
+apply clarsimp
+(* well typed new body! *)
+apply (clarsimp simp: Let_def)
+apply (case_tac "length (MParams aa) = length vl")  
+apply clarsimp
+apply (drule_tac x=CLa in bspec)
+apply (erule fetchClass_Some_In)
+apply (rule_tac Stl="Body aa" in TypeStatementList_TypeStatement)
+apply (drule_tac x=aa in bspec)
+apply (erule fetchMethodInClass_Some)
+apply (rule TypeStl_EmptyConfig)
+apply (simp add: BuildTypeEnv_def)
+apply (drule fetchClass_Some_Name,simp)
+apply simp
+apply simp
+
+(* AssignLocal *)
+
+apply
+need lemma about wt empty config \<Rightarrow> wt non-empty
+Prog ( CL) Vars
+        Stl,EmptyConfig,map_of (map prod.swap (ClassParameters CLa)) ++ map_of (map prod.swap (LocalVariables aa)) ++
+                        map_of (map prod.swap (MParams aa)) in Name CLa\<turnstile>\<^sub>L Body aa 
+\<longrightarrow>
+       Prog CL Vars
+        Stl,Cn (Activities(\<alpha> \<mapsto>
+                AO C state (Some (f, m, vl))
+                 (map_of (zip (map snd (LocalVariables aa)) (map (Initialisation_from_ASPType \<circ> fst) (MParams aa))) ++ map_of (zip (map snd (MParams aa)) vl), Body aa)
+                 Rq))
+             Futures,BuildTypeEnv (ClassParameters CLa) ++ BuildTypeEnv (LocalVariables aa) ++ BuildTypeEnv (MParams aa) in C\<turnstile>\<^sub>L Body aa 
+
+
+
+apply
+same length params?
+
+
+
+apply (drule_tac x=CLa in bspec)
+apply (case_tac P)
+apply (simp add: fetchClass_def)
+apply (rule "TypeRequest.intros",simp+)

@@ -1,5 +1,5 @@
 theory gASPFuturesTypeSystem imports gASPFutures begin
-
+(* there is a type Any for null*)
 definition BuildTypeEnv ::"(ASPType * VarName) list \<Rightarrow> VarName \<Rightarrow>ASPType option"
 where
 "BuildTypeEnv VarDeclList =  (map_of (map prod.swap (VarDeclList)))"
@@ -30,12 +30,12 @@ where
 
 inductive TypeAtom :: "Program\<Rightarrow>Configuration\<Rightarrow> (VarName \<rightharpoonup>ASPType)\<Rightarrow> ClassName\<Rightarrow>Atom \<Rightarrow>ASPType \<Rightarrow> bool"  ("_,_,_ in _\<turnstile>\<^sub>A_:_" 50)
  where
- " P,Config \<turnstile>\<^sub>V v:T \<Longrightarrow> P,config,\<Gamma> in C \<turnstile>\<^sub>A Val v:T"
+ " P,Config \<turnstile>\<^sub>V v:T \<Longrightarrow> P,Config,\<Gamma> in C \<turnstile>\<^sub>A Val v:T"
 |
-" P,Cn Acts Futs,\<Gamma> in C \<turnstile>\<^sub>A Var This:  BType (TObj C)  (*This*)
+" P,Config,\<Gamma> in C \<turnstile>\<^sub>A Var This:  BType (TObj C)  (*This*)
   " 
 |
-" \<Gamma> x = Some T \<Longrightarrow>P,Cn Acts Futs,\<Gamma>  in C\<turnstile>\<^sub>A Var (Id x) : T (* Var or field reference *)
+" \<Gamma> x = Some T \<Longrightarrow>P,Config,\<Gamma>  in C\<turnstile>\<^sub>A Var (Id x) : T (* Var or field reference *)
   "
 |
 "P\<turnstile>T\<sqsubseteq>T' \<Longrightarrow>  P,Config,\<Gamma> in C \<turnstile>\<^sub>A e:T \<Longrightarrow> P,Config,\<Gamma> in C \<turnstile>\<^sub>A e:T' " (* subtype*)
@@ -106,10 +106,10 @@ where
 
 primrec TypeProgram :: "Program \<Rightarrow>bool" ("\<turnstile>\<^sub>P _ " 50)
 where
-" (\<turnstile>\<^sub>PProg CL MainVars MainBody) = (let P = Prog ((MainObjClass MainVars)#CL) MainVars MainBody in
-                          ( (\<forall> C\<in>set CL. (P\<turnstile>\<^sub>CC)) \<and>
-                            (let \<Gamma> = (map_of (map prod.swap (MainVars))) in
-                              (P,EmptyConfig,\<Gamma> in (''MainClass'') \<turnstile>\<^sub>L MainBody )  ) ) )
+" (\<turnstile>\<^sub>PProg CL MainVars MainBody) = (
+                   (\<forall> C\<in>set CL. (Prog CL MainVars MainBody\<turnstile>\<^sub>CC)) \<and>
+                   (let \<Gamma> = (map_of (map prod.swap (MainVars))) in
+                           (Prog ((MainObjClass MainVars)#CL) MainVars MainBody,EmptyConfig,\<Gamma> in (''MainClass'') \<turnstile>\<^sub>L MainBody )  )  )
 "
 
 inductive TypeRequest :: "Program \<Rightarrow> Configuration\<Rightarrow> ClassName \<Rightarrow>Request \<Rightarrow> bool"  ("_,_ in _ \<turnstile>\<^sub>Q _" 50)
@@ -138,7 +138,9 @@ where
          (\<exists> Meth. fetchMethodInClass CL m = Some Meth \<and>
            (P, Cn AOs Futures in C \<turnstile>\<^sub>Q (f,m,vl)) 
            \<and> (case Ec of (locs,Stl) \<Rightarrow> ( \<forall> s\<in>set Stl. 
-             (P,Cn AOs Futures,(BuildTypeEnv (ClassParameters CL))++(BuildTypeEnv (LocalVariables Meth))++(BuildTypeEnv (MParams Meth)) in C \<turnstile>\<^sub>S s)
+             (P,Cn AOs Futures,
+             (BuildTypeEnv (ClassParameters CL))++(BuildTypeEnv (LocalVariables Meth))++(BuildTypeEnv (MParams Meth)) 
+                in C \<turnstile>\<^sub>S s)
         )) ) ) )))) \<and>
    (* Futures *)
 (\<forall> futs\<in> ran Futures. case futs of

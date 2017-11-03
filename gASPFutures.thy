@@ -55,8 +55,8 @@ datatype Rhs = Expr Expression
              | Get Atom
 
 datatype Statement =   Assign VarName Rhs  (infix "=\<^sub>A"  400) (*x=z*)
-| Return Expression ("return _" [300] 300)(*return E *)
-| If Atom "Statement list" "Statement list" ("IF _ THEN _ ELSE _ " [300,0,0] 300)(*if E then s else s *)
+      | Return Expression ("return _" [300] 300)(*return E *)
+       | If Atom "Statement list" "Statement list" ("IF _ THEN _ ELSE _ " [300,0,0] 300)(*if E then s else s *)
 (* skip |  NB: skip and seq are not necessary thanks to the use of statement list
 | Seq Statement Statement (infix ";;"  100)*)
 abbreviation MakeStatementList:: "Statement \<Rightarrow>Statement list\<Rightarrow>Statement list" (infix ";;" 100)
@@ -213,10 +213,9 @@ where
   Valnull[simp,intro]: "(null,   null)\<in>EvalValue" |
   Valint[simp,intro]: "(ASPInt i,  (ASPInt i) )\<in>EvalValue" |
   valbool[simp,intro]: "(ASPBool b,  (ASPBool b) )\<in>EvalValue" |
-  valact[simp,intro]: "(ActRef \<alpha>,  (ActRef \<alpha>) )\<in>EvalValue" 
+  valact[simp,intro]: "(ActRef \<alpha>,  ActRef \<alpha> )\<in>EvalValue" 
 
-lemma EvalValue_is_deterministic[rule_format,intro]: "(e,v)\<in>EvalValue \<longrightarrow>(e,v')\<in>EvalValue \<longrightarrow>v=v'"
-apply (rule impI)
+lemma EvalValue_is_deterministic[rule_format,intro]: "(e,v)\<in>EvalValue \<Longrightarrow>(e,v')\<in>EvalValue \<longrightarrow>v=v'"
 apply (erule EvalValue.induct)
 apply auto
 apply (erule EvalValue.cases,simp+)+
@@ -233,8 +232,7 @@ inductive_set EvalAtom:: "(Atom  \<times>ActName  \<times> (VarName\<rightharpoo
                       \<Longrightarrow>(Var (Id x),\<alpha>, state, locs, ev)\<in>EvalAtom" 
 
 lemma EvalAtom_is_deterministic[rule_format]: 
-      " (e,\<alpha>,state,locs,v)\<in>EvalAtom \<longrightarrow> (\<forall> v'. (e,\<alpha>,state,locs,v')\<in>EvalAtom \<longrightarrow>v=v')"
-apply (rule impI)
+      " (e,\<alpha>,state,locs,v)\<in>EvalAtom \<Longrightarrow> (\<forall> v'. (e,\<alpha>,state,locs,v')\<in>EvalAtom \<longrightarrow>v=v')"
 apply (erule EvalAtom.induct)
 apply (case_tac v,auto)
 apply (erule EvalAtom.cases,auto)+
@@ -249,8 +247,7 @@ inductive_set EvalExpr:: "(Expression  \<times>ActName  \<times> (VarName\<right
 
 
 lemma EvalExpr_is_deterministic[rule_format]: 
-      " (e,\<alpha>,state,locs,v)\<in>EvalExpr \<longrightarrow> (\<forall> v'. (e,\<alpha>,state,locs,v')\<in>EvalExpr \<longrightarrow>v=v')"
-apply (rule impI)
+      " (e,\<alpha>,state,locs,v)\<in>EvalExpr \<Longrightarrow> (\<forall> v'. (e,\<alpha>,state,locs,v')\<in>EvalExpr \<longrightarrow>v=v')"
 apply (erule EvalExpr.induct)
 apply auto
 apply (erule EvalExpr.cases,auto)
@@ -314,9 +311,8 @@ AssignField  [simp, intro!]:
 |
 
    InvkActive  [simp, intro!]: 
-     "\<lbrakk>Activities \<alpha> = Some (AO C state (Some R) Ec Rq); 
+     "\<lbrakk>Activities \<alpha> = Some (AO C state (Some R) (locs,(x=\<^sub>A(e.\<^sub>Am(el));;Stl)) Rq); 
        Activities \<beta> = Some (AO C\<^sub>\<beta> state\<^sub>\<beta>  R\<^sub>\<beta> Ec\<^sub>\<beta> Rq\<^sub>\<beta>); 
-        Ec= (locs,(x=\<^sub>A(e.\<^sub>Am(el));;Stl));
        \<alpha>\<noteq>\<beta>;
        (e,\<alpha>,state, locs,ActRef \<beta>)\<in>EvalAtom;
        f\<notin>dom Futures;   
