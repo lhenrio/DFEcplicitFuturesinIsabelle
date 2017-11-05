@@ -137,11 +137,15 @@ where
      (case R of Some  (f,m,vl) \<Rightarrow>
          (\<exists> Meth. fetchMethodInClass CL m = Some Meth \<and>
            (P, Cn AOs Futures in C \<turnstile>\<^sub>Q (f,m,vl)) 
-           \<and> (case Ec of (locs,Stl) \<Rightarrow> ( \<forall> s\<in>set Stl. 
+           \<and> (case Ec of (locs,Stl) \<Rightarrow> (
+           ((  \<forall> x v. (locs(x) =Some  v \<longrightarrow> ( (\<exists> T . (T,x)\<in> set (LocalVariables Meth) \<and> (P,Cn AOs Futures\<turnstile>\<^sub>V v: T))
+                                            \<or>(\<exists> T . (T,x)\<in> set (MParams Meth) \<and> (P,Cn AOs Futures\<turnstile>\<^sub>V v: T))) )))
+\<and>
+           ( \<forall> s\<in>set Stl. 
              (P,Cn AOs Futures,
              (BuildTypeEnv (ClassParameters CL))++(BuildTypeEnv (LocalVariables Meth))++(BuildTypeEnv (MParams Meth)) 
                 in C \<turnstile>\<^sub>S s)
-        )) ) ) )))) \<and>
+        )) ) ) ))))) \<and>
    (* Futures *)
 (\<forall> futs\<in> ran Futures. case futs of
       (T,Undefined) \<Rightarrow> True |
