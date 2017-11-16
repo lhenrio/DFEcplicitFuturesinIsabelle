@@ -30,6 +30,9 @@ type_synonym Location = nat
 datatype BasicType = Integer | Boolean | TObj ClassName  | AnyObject
 datatype ASPType = BType BasicType | FutType BasicType 
 
+abbreviation BasicTypeinASPType where
+"BasicTypeinASPType fT \<equiv> case fT of BType T\<Rightarrow>T | FutType T\<Rightarrow>T"
+
 datatype Signature = Method ASPType MethodName  "(ASPType * VarName) list" 
   (* signature = Method returnType MethodName (list of parameters)*)
 
@@ -94,7 +97,6 @@ abbreviation MParams:: "Method \<Rightarrow>(ASPType * VarName) list"
 where "MParams m \<equiv> case (MethSignature m) of 
         (Method returnType MethName listparameters) \<Rightarrow>listparameters"
 
-
 record Class = 
  Name::ClassName 
  ClassParameters::"((ASPType * VarName) list)"
@@ -148,12 +150,12 @@ Option.bind
 definition Initialisation_from_BasicType
 where 
 "Initialisation_from_BasicType T \<equiv> case T of
-Integer \<Rightarrow> (ASPInt 0)| Boolean \<Rightarrow> ASPBool False | TObj ClassName \<Rightarrow> null
+Integer \<Rightarrow> (ASPInt 0)| Boolean \<Rightarrow> ASPBool False | TObj ClassName \<Rightarrow> null | AnyObject \<Rightarrow> null
 "
 definition Initialisation_from_ASPType
 where 
-"Initialisation_from_ASPType fT \<equiv> case fT of
-BType T \<Rightarrow> Initialisation_from_BasicType T | FutType T \<Rightarrow> Initialisation_from_BasicType T
+"Initialisation_from_ASPType fT \<equiv> 
+Initialisation_from_BasicType (BasicTypeinASPType fT)
 "
 
 definition Bind::"Program\<Rightarrow>ClassName\<Rightarrow>MethodName\<Rightarrow>Value list\<Rightarrow> EContext option"

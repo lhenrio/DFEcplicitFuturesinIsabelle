@@ -10,15 +10,17 @@ inductive Subtype :: "Program\<Rightarrow>ASPType \<Rightarrow>ASPType \<Rightar
 |
  "P\<turnstile>BType T\<sqsubseteq>FutType T"
 |
- "P\<turnstile>BType (TObj C)\<sqsubseteq>BType AnyObject"
+ "P\<turnstile>BType AnyObject\<sqsubseteq>BType (TObj C)"
 |
- "P\<turnstile>FutType (TObj C)\<sqsubseteq>FutType AnyObject"
+ "P\<turnstile>FutType AnyObject\<sqsubseteq>FutType (TObj C)"
 
 inductive TypeValue :: "Program\<Rightarrow>Configuration\<Rightarrow>Value \<Rightarrow> ASPType \<Rightarrow> bool"  ("_,_\<turnstile>\<^sub>V_:_" 50)
 where
  "P,Conf \<turnstile>\<^sub>V ASPInt n: BType Integer"
 |
  "P,Conf \<turnstile>\<^sub>V ASPBool b: BType Boolean"
+|
+ "P,Conf \<turnstile>\<^sub>V undefined :  FutType (AnyObject)"
 |
  "P,Conf \<turnstile>\<^sub>V null :  BType (AnyObject)"
 |
@@ -27,6 +29,8 @@ where
 |
  "Futs f = Some(T,V)
 \<Longrightarrow> P,Cn Acts Futs \<turnstile>\<^sub>V FutRef f: FutType T"  (*dynamic fut*)
+|
+"P\<turnstile>T\<sqsubseteq>T' \<Longrightarrow>  P,Config \<turnstile>\<^sub>V v:T \<Longrightarrow> P,Config \<turnstile>\<^sub>V v:T' " (* subtype*)
 
 inductive TypeAtom :: "Program\<Rightarrow>Configuration\<Rightarrow> (VarName \<rightharpoonup>ASPType)\<Rightarrow> ClassName\<Rightarrow>Atom \<Rightarrow>ASPType \<Rightarrow> bool"  ("_,_,_ in _\<turnstile>\<^sub>A_:_" 50)
  where
@@ -140,7 +144,7 @@ where
            \<and> (case Ec of (locs,Stl) \<Rightarrow> (
            ((  \<forall> x v. (locs(x) =Some  v \<longrightarrow> ( (\<exists> T . (T,x)\<in> set (LocalVariables Meth) \<and> (P,Cn AOs Futures\<turnstile>\<^sub>V v: T))
                                             \<or>(\<exists> T . (T,x)\<in> set (MParams Meth) \<and> (P,Cn AOs Futures\<turnstile>\<^sub>V v: T))) )))
-\<and>
+                                            \<and>
            ( \<forall> s\<in>set Stl. 
              (P,Cn AOs Futures,
              (BuildTypeEnv (ClassParameters CL))++(BuildTypeEnv (LocalVariables Meth))++(BuildTypeEnv (MParams Meth)) 

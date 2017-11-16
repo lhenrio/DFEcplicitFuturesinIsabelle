@@ -1,6 +1,22 @@
 theory TypeTheorems imports gASPFuturesTypeSystem begin
 
 section{* Induction lemmas *}
+lemma TypeValue_induct_Config:
+"P,Cn aos futs\<turnstile>\<^sub>V v:T 
+\<Longrightarrow> (\<And>P aos futs n. Prop  P aos futs (ASPInt n) (BType Integer))
+\<Longrightarrow> (\<And>P aos futs b. Prop P aos futs (ASPBool b) (BType Boolean))
+\<Longrightarrow> (\<And>P aos futs. Prop P aos futs  null (BType AnyObject))
+\<Longrightarrow> (\<And> Acts Futs \<alpha> C' state R Ec Rq P.  (Acts \<alpha> = Some (AO C' state R Ec Rq) \<Longrightarrow> Prop P Acts Futs (ActRef \<alpha>) (BType (TObj C'))))
+\<Longrightarrow> (\<And> Acts Futs f T V P. Futs f = Some (T, V) \<Longrightarrow> Prop P  Acts Futs (FutRef f) (FutType T)) 
+\<Longrightarrow> (\<And> Acts Futs f T V P. Prop P  Acts Futs (undefined) (FutType AnyObject)) 
+\<Longrightarrow> (\<And>P T T' aos futs v.  P\<turnstile>T\<sqsubseteq>T' \<Longrightarrow> P,Cn aos futs\<turnstile>\<^sub>Vv:T \<Longrightarrow> Prop P aos futs v T \<Longrightarrow> Prop P aos futs v T')
+\<Longrightarrow>Prop P aos futs  v T"
+apply (insert gASPFuturesTypeSystem.TypeValue.induct [of  P "Cn aos futs"  v T  "\<lambda> x conf y . (Prop x (Conf_AOs conf) (Conf_futs conf) y )" ])
+apply auto
+apply (drule meta_impE,auto)
+apply(case_tac Config,auto)
+done
+
 lemma TypeExpression_induct_Config:
 "P,Cn aos futs,\<Gamma> in C\<turnstile>\<^sub>Ee:T \<Longrightarrow>
     (\<And>P aos futs \<Gamma> C v T. P,Cn aos futs,\<Gamma> in C\<turnstile>\<^sub>Av:T \<Longrightarrow> Prop P aos futs \<Gamma> C (At v) T) \<Longrightarrow>
@@ -73,19 +89,23 @@ by (unfold fetchClass_def,simp,drule find_Some_P,simp)
 lemma fetchMethodInClass_Some:
  "fetchMethodInClass C m = Some M \<Longrightarrow> M \<in> set (Methods C)"
 by (unfold fetchMethodInClass_def, rule find_Some,auto)
+
+
 section{* extending set of AOs in config *}
 
 lemma TypeValue_extendconfiguration_AO[rule_format]:
 "P,Cn AOs Futures\<turnstile>\<^sub>Vv:T \<Longrightarrow> (case AOs \<alpha> of Some (AO C' st' R' Ec' Rq') \<Rightarrow> C=C' | None \<Rightarrow> True) 
-    \<Longrightarrow>(P,Cn  (AOs(\<alpha>\<mapsto> (AO C state R Ec Rq))) Futures\<turnstile>\<^sub>Vv:T)"
-apply (erule TypeValue.cases,auto)
-    apply (rule TypeValue.intros)
-   apply (rule TypeValue.intros)
-  apply (rule TypeValue.intros)
- apply (case_tac "\<alpha>=\<alpha>'")
-  apply (rule TypeValue.intros,force)
- apply (rule TypeValue.intros,force)
-apply (rule TypeValue.intros,simp)
+    \<longrightarrow>(P,Cn  (AOs(\<alpha>\<mapsto> (AO C state R Ec Rq))) Futures\<turnstile>\<^sub>Vv:T)"
+apply (erule TypeValue_induct_Config,auto)
+      apply (rule  "TypeValue.intros" )
+     apply (rule  "TypeValue.intros" )
+    apply (rule  "TypeValue.intros" )
+   apply (case_tac "\<alpha>=\<alpha>'")
+    apply (rule TypeValue.intros,force)
+   apply (rule TypeValue.intros,force)
+  apply (rule TypeValue.intros,simp)
+ apply (rule TypeValue.intros)
+apply (rule TypeValue.intros,auto)
 done
 
 lemma TypeValue_extendconfiguration_AO_lambda[rule_format]:
@@ -179,9 +199,9 @@ by (insert TypeStatement_extendconfiguration_AO_Pre, auto)
 section{* extending set of futs in config *}
 
 lemma TypeValue_extendconfiguration_futs[rule_format]:
-"P,Cn AOs futs\<turnstile>\<^sub>Vv:T \<Longrightarrow>futs f = None\<Longrightarrow>(P,Cn  AOs  (futs(f\<mapsto>a))\<turnstile>\<^sub>Vv:T)"
-apply (erule TypeValue.cases,auto)
-    apply (rule TypeValue.intros,force?)+
+"P,Cn AOs futs\<turnstile>\<^sub>Vv:T \<Longrightarrow>(futs f = None\<longrightarrow>(P,Cn  AOs  (futs(f\<mapsto>a))\<turnstile>\<^sub>Vv:T))"
+apply (erule TypeValue_induct_Config,auto)
+    apply (rule TypeValue.intros,auto?)+
 done
 lemma TypeValue_extendconfiguration_futs_lambda[rule_format]:
 "P,Cn AOs futs\<turnstile>\<^sub>Vv:T \<Longrightarrow>futs f = None\<Longrightarrow>(P,Cn  AOs  (\<lambda>a. if a = f then Some Y else futs a)\<turnstile>\<^sub>Vv:T)"
@@ -289,13 +309,15 @@ lemma TypeUpdate_AO:  "P \<turnstile> Cn AOs Futures  \<Longrightarrow>
      (case R of Some  (f,m,vl) \<Rightarrow>
          (\<exists> Meth. fetchMethodInClass CL m = Some Meth \<and>
            (P, Cn (AOs(\<alpha> \<mapsto> AO C state R Ec Rq)) Futures in C \<turnstile>\<^sub>Q (f,m,vl)) 
-           \<and> (case Ec of (locs,Stl) \<Rightarrow> ( \<forall> s\<in>set Stl. 
+           \<and> (case Ec of (locs,Stl) \<Rightarrow>  ((  \<forall> x v. (locs(x) =Some  v \<longrightarrow> ( (\<exists> T . (T,x)\<in> set (LocalVariables Meth) \<and> (P,Cn (AOs(\<alpha> \<mapsto> AO C state R Ec Rq)) Futures\<turnstile>\<^sub>V v: T))
+                                            \<or>(\<exists> T . (T,x)\<in> set (MParams Meth) \<and> (P,Cn (AOs(\<alpha> \<mapsto> AO C state R Ec Rq)) Futures\<turnstile>\<^sub>V v: T))) )))
+                                    \<and> ( \<forall> s\<in>set Stl. 
              (P,Cn (AOs(\<alpha> \<mapsto> AO C state R Ec Rq)) Futures,(BuildTypeEnv (ClassParameters CL))++(BuildTypeEnv (LocalVariables Meth))++(BuildTypeEnv (MParams Meth)) in C \<turnstile>\<^sub>S s)
         )) ) ) )))
 \<Longrightarrow> P \<turnstile> Cn (AOs(\<alpha> \<mapsto> AO C state R Ec Rq)) Futures "
 apply (clarsimp,auto)
  apply (clarsimp simp: ran_def)
- apply (case_tac "a = \<alpha>",simp,force)
+ apply (case_tac "a = \<alpha>",clarsimp)
 (*activity not alpha *)
  apply clarsimp
  apply (case_tac Act,clarsimp)
@@ -331,6 +353,16 @@ apply (clarsimp,auto)
   apply (simp add: Fun.fun_upd_def)
   apply (erule TypeRequest_extendconfiguration_AO)
   apply auto
+  apply (drule_tac x=x in spec,drule_tac x=v in spec,clarsimp)
+  apply (elim disjE)
+   apply clarsimp
+   apply (rule_tac x=T in exI,clarsimp)
+   apply (erule TypeValue_extendconfiguration_AO,force)
+(*3*)
+  apply clarsimp
+  apply (drule_tac x=T in spec,simp add: MethSignature_def)
+  apply (drule TypeValue_extendconfiguration_AO,force,force)
+
  apply (drule_tac x=x in bspec,auto)
  apply (erule_tac \<alpha>=\<alpha> in TypeStatement_extendconfiguration_AO)
  apply simp
@@ -350,6 +382,7 @@ lemma  TypeValue_EmptyConfig_pre:
   "(P,Cnf\<turnstile>\<^sub>Vv:T) \<Longrightarrow>(Cnf=EmptyConfig  \<longrightarrow>(P,Config\<turnstile>\<^sub>Vv:T))"
 apply (erule TypeValue.induct,auto)
 apply (rule TypeValue.intros)+
+apply auto
 done
 lemma  TypeValue_EmptyConfig: 
   "(P,EmptyConfig\<turnstile>\<^sub>Vv:T) \<Longrightarrow>(P,Config\<turnstile>\<^sub>Vv:T)"
@@ -420,10 +453,63 @@ by (insert Type_EmptyConfig_Stl_pre,auto)
 
 section{* Well-typed initial configuraiton *}
 
+lemma Initialization_Vars_BasicType: 
+"(map_of (map (\<lambda> v. (snd v,Initialisation_from_BasicType (fst v))) vl)) x=Some v 
+  \<Longrightarrow> \<exists>T. ((T,x)\<in>set vl\<and> (P,Conf\<turnstile>\<^sub>Vv:BType T))"
+apply (auto simp: Initialisation_from_BasicType_def)
+apply (drule Map.map_of_SomeD,auto)
+apply (rule_tac x=a in exI,auto)
+apply (case_tac a,auto)
+(*4*)
+    apply (rule TypeValue.intros)
+   apply (rule TypeValue.intros)
+  apply (subgoal_tac "P,Conf\<turnstile>\<^sub>Vnull:BType AnyObject")
+   apply (subgoal_tac "P\<turnstile>BType AnyObject\<sqsubseteq>BType (TObj x3)")
+    apply (erule TypeValue.intros)
+    apply auto
+   apply (rule Subtype.intros)
+  apply (rule TypeValue.intros)
+ apply (rule TypeValue.intros)
+done
+
+lemma Initialization_Vars_ASPType: 
+"(map_of (map (\<lambda> v. (snd v,Initialisation_from_ASPType (fst v))) vl)) x=Some v 
+  \<Longrightarrow> \<exists>T. ((T,x)\<in>set vl\<and> (P,Conf\<turnstile>\<^sub>Vv:T))"
+apply (auto simp: Initialisation_from_ASPType_def)
+apply (drule Map.map_of_SomeD,auto)
+apply (rule_tac x=a in exI,auto)
+apply (case_tac a,auto)
+ apply (case_tac x1,auto simp: Initialisation_from_BasicType_def)
+(*5*)
+    apply (rule TypeValue.intros)
+   apply (rule TypeValue.intros)
+  apply (subgoal_tac "P,Conf\<turnstile>\<^sub>Vnull:BType AnyObject")
+   apply (subgoal_tac "P\<turnstile>BType AnyObject\<sqsubseteq>BType (TObj x3)")
+    apply (erule TypeValue.intros)
+    apply auto
+   apply (rule Subtype.intros)
+  apply (rule TypeValue.intros)
+ apply (rule TypeValue.intros)
+apply (case_tac x2,auto simp: Initialisation_from_BasicType_def)
+(*4*)
+   apply (rule TypeValue.intros,rule Subtype.intros(2),rule TypeValue.intros) (*enforce btype<Ftype*)
+  apply (rule TypeValue.intros,rule Subtype.intros(2),rule TypeValue.intros) (*enforce btype<Ftype*)
+ apply (subgoal_tac "P,Conf\<turnstile>\<^sub>Vnull:FutType AnyObject")
+  apply (subgoal_tac "P\<turnstile>FutType AnyObject\<sqsubseteq>FutType (TObj x3)")
+   apply (erule TypeValue.intros,simp)
+  apply (rule Subtype.intros)
+ apply (rule TypeValue.intros,rule Subtype.intros(2),rule TypeValue.intros)
+apply (rule TypeValue.intros,rule Subtype.intros(2),rule TypeValue.intros)
+done
+
+
 theorem WTinitialconfiguration: "\<turnstile>\<^sub>P Prog  CL Vars Stl \<Longrightarrow> Prog  ((MainObjClass Vars)#CL) Vars Stl \<turnstile> InitialConfiguration (Prog  CL Vars Stl)"
 apply (unfold InitialConfiguration_def BuildInitialConfigurationfromVarsStl_def)
-apply (auto,unfold Let_def fetchClass_def fetchMethodInClass_def MainObjClass_def MainMethodEmptyBody_def,auto)
- apply (intro gASPFuturesTypeSystem.TypeRequest.intros, auto simp: fetchClass_def fetchMethodInClass_def GetBasicType_def)
+apply (auto,unfold Let_def Initialisation_from_ASPType_def fetchClass_def fetchMethodInClass_def MainObjClass_def MainMethodEmptyBody_def,auto)
+ apply (intro gASPFuturesTypeSystem.TypeRequest.intros, auto simp: fetchClass_def fetchMethodInClass_def GetBasicType_def )
+ apply (rule Initialization_Vars_ASPType)
+ apply (simp add: Initialisation_from_ASPType_def)
+(*1*)
 apply (rule TypeStatementList_TypeStatement,auto)
 apply (unfold BuildTypeEnv_def)
 apply (rule_tac AOs="empty"  in TypeStatementList_extendconfiguration)
