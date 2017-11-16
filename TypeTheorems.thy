@@ -447,11 +447,44 @@ apply (erule TypeAtom_EmptyConfig)
 apply (rule TypeStatement_TypeStatementList.intros)
 apply (rule TypeStatement_TypeStatementList.intros,auto)
 done
+
 lemma  TypeStl_EmptyConfig: 
 "(P,EmptyConfig,\<Gamma> in C \<turnstile>\<^sub>L Stl) \<Longrightarrow>(P,Config,\<Gamma> in C \<turnstile>\<^sub>L Stl)"
 by (insert Type_EmptyConfig_Stl_pre,auto)
 
+lemma Var_in_LocalVariables:
+"  map_of (zip (map snd (LocalVariables aa)) (map (Initialisation_from_ASPType \<circ> fst) (LocalVariables aa))) x = Some v \<Longrightarrow>
+                     (\<exists>T. (T, x) \<in> set (LocalVariables aa)\<and> (P,Config\<turnstile>\<^sub>Vv:T))" 
+apply (case_tac aa,simp,erule_tac t=aa in ssubst,simp add: atomize_imp)
+apply (induct_tac LocalVariables)
+ apply (clarsimp )+
+apply (rule_tac x=a in exI)
+apply (case_tac a,clarsimp)
+
+ apply (case_tac x1,unfold Initialisation_from_ASPType_def Initialisation_from_BasicType_def)
+(*5*)
+    apply (clarsimp,rule TypeValue.intros)
+   apply (clarsimp,rule TypeValue.intros)
+  apply (clarsimp,rule TypeValue.intros,rule Subtype.intros(3))
+  apply (rule TypeValue.intros)
+ apply (clarsimp,rule TypeValue.intros)
+
+apply (case_tac x2)
+(*4*)
+   apply (clarsimp,rule TypeValue.intros,rule Subtype.intros(2))
+   apply (rule TypeValue.intros)
+  apply (clarsimp,rule TypeValue.intros,rule Subtype.intros(2))
+  apply (rule TypeValue.intros)
+ apply (clarsimp,rule TypeValue.intros,rule Subtype.intros(2))
+ apply (rule TypeValue.intros,rule Subtype.intros(3))
+ apply (rule TypeValue.intros)
+apply (clarsimp,rule TypeValue.intros,rule Subtype.intros(2))
+apply (rule TypeValue.intros)
+done
+
+
 section{* Well-typed initial configuraiton *}
+
 
 lemma Initialization_Vars_BasicType: 
 "(map_of (map (\<lambda> v. (snd v,Initialisation_from_BasicType (fst v))) vl)) x=Some v 
@@ -521,51 +554,83 @@ section {* Subject Reduction *}
 
 
 theorem SubjectReduction: 
-"Prog CL Vars Stl \<turnstile> Cn aos futs   \<leadsto> Cn aos' futs' \<Longrightarrow> \<turnstile>\<^sub>P Prog  CL Vars Stl
+"(Prog CL Vars Stl \<turnstile> Cn aos futs   \<leadsto> Cn aos' futs') \<Longrightarrow> (\<turnstile>\<^sub>P Prog  CL Vars Stl)
     \<longrightarrow> ((Prog CL Vars Stl \<turnstile> Cn aos futs)  \<longrightarrow> (Prog CL Vars Stl \<turnstile> Cn aos' futs'))"
 apply (erule gASPFutures.reduction.induct)
 (* 11 SERVE *)
-apply (case_tac P, rename_tac CL Vars Stl, simp only: Let_def)
-apply (intro impI)
-apply (rule TypeUpdate_AO)
-apply clarsimp+
-apply (drule_tac x="AO C state None (a, b) ((f, m, vl) # Rq)" in bspec,force simp: ran_def)
-apply simp
-apply clarify
-apply (rule_tac x=CLa in exI)
-apply clarsimp
-apply (intro conjI,clarsimp)
-apply (drule_tac x=x in spec, drule_tac x=v in spec)
-apply clarsimp
-apply (rule_tac x=T in exI)
-apply clarsimp
-apply (erule TypeValue_extendconfiguration_AO,clarsimp)
+ apply (case_tac P, rename_tac CL Vars Stl, simp only: Let_def)
+ apply (intro impI,rule TypeUpdate_AO)
+   apply clarsimp+
+ apply (drule_tac x="AO C state None (a, b) ((f, m, vl) # Rq)" in bspec,force simp: ran_def)
+ apply simp
+ apply clarify
+ apply (rule_tac x=CLa in exI)
+ apply clarsimp
+ apply (intro conjI,clarsimp)
+  apply (drule_tac x=x in spec, drule_tac x=v in spec)
+  apply clarsimp
+  apply (rule_tac x=T in exI)
+  apply clarsimp
+  apply (erule TypeValue_extendconfiguration_AO,clarsimp)
 (*12*)
-apply clarsimp
-apply (rename_tac a b c)
-apply (drule_tac x="(a,b,c)" in bspec,simp)
-apply (simp add: fun_upd_def)
-apply (erule TypeRequest_extendconfiguration_AO)
-apply force
+  apply clarsimp
+  apply (rename_tac a b c)
+  apply (drule_tac x="(a,b,c)" in bspec,simp)
+  apply (simp add: fun_upd_def)
+  apply (erule TypeRequest_extendconfiguration_AO)
+  apply force
 (*11*)
-apply (simp add: Bind_def )
-apply (case_tac "fetchMethodInClass CLa m",clarsimp)
+ apply (simp add: Bind_def )
+ apply (case_tac "fetchMethodInClass CLa m",clarsimp)
+ apply clarsimp
+ apply (intro conjI)
+   apply (simp add: fun_upd_def,erule TypeRequest_extendconfiguration_AO,force)
+(*12 well typed new body! *)
+  apply (simp add: Let_def)
+  apply (case_tac "length (MParams aa) = length vl")  
+   apply (drule_tac x=CLa in bspec)
+    apply (erule fetchClass_Some_In)
+
+apply (intro allI impI,simp,elim conjE)
+apply (rotate_tac 12) (*map_of (zip (map snd (LocalVariables aa)) (map (Initialisation_from_ASPType \<circ> fst) (MParams aa))) ++ map_of (zip (map snd (MParams aa)) vl) = ac*)
+apply (drule sym,simp)
+apply (drule Map.map_add_SomeD,elim disjE)
+
+apply (rule disjI2)
+apply (erule "TypeRequest.cases")
+apply (drule Map.map_of_SomeD,simp, simp add: set_conv_nth,clarsimp)
+apply (drule_tac x=i in spec,simp)
+apply (rule_tac x="fst (MParams aa ! i)" in exI)
 apply clarsimp
 apply (intro conjI)
-apply (simp add: fun_upd_def,erule TypeRequest_extendconfiguration_AO,force)
+apply (rule_tac x="MParams aa" in exI)
+apply (case_tac "MethSignature aa",force)
+apply (erule TypeValue_extendconfiguration_AO,force)
+
+apply (rule disjI1, elim conjE)
+apply (frule Var_in_LocalVariables,clarsimp)
+apply (rule_tac x=T in exI,simp)
+apply (subgoal_tac "
+zip (map snd (LocalVariables aa)) (map (Initialisation_from_ASPType \<circ> fst) (MParams aa))
+=map (\<lambda>v. (snd v, Initialisation_from_ASPType (fst v))) (LocalVariables aa)")
+apply force
+
+apply (simp add: zip_map1)
+
 apply clarsimp
-(* well typed new body! *)
-apply (clarsimp simp: Let_def)
-apply (case_tac "length (MParams aa) = length vl")  
-apply clarsimp
+
+   apply (rule_tac Stl="Body aa" in TypeStatementList_TypeStatement)
 apply (drule_tac x=CLa in bspec)
 apply (erule fetchClass_Some_In)
-apply (rule_tac Stl="Body aa" in TypeStatementList_TypeStatement)
 apply (drule_tac x=aa in bspec)
 apply (erule fetchMethodInClass_Some)
 apply (rule TypeStl_EmptyConfig)
 apply (simp add: BuildTypeEnv_def)
-apply (drule fetchClass_Some_Name,simp,simp,simp)
+apply (drule fetchClass_Some_Name,clarsimp)
+apply (clarsimp simp: Let_def)
+apply (case_tac "length (MParams aa) = length vl")  
+apply force
+apply force
 
 (*10 AssignLocal *)
 apply (case_tac P, rename_tac CL Vars Stl, simp only: Let_def)
